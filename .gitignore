@@ -39,6 +39,9 @@ build/
 
 ### VS Code ###
 .vscode/
+.bloop/
+.metals/
+project/**
 
 ### Mac OS ###
 .DS_Store
@@ -46,3 +49,11 @@ build/
 ### Scala ###
 .bsp/
 .out/*
+
+### LaTeX ###
+*.aux
+*.fdb_latexmk
+*.fls
+*.log
+*.synctex.gz
+*.pdf
