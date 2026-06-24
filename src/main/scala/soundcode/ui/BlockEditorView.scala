@@ -57,14 +57,30 @@ final class BlockEditorView(
         KeyEvent.KEY_PRESSED,
         (event: KeyEvent) =>
           event.getCode match
+            case KeyCode.ENTER =>
+              event.consume()
+              splitLine(this)
+            case KeyCode.BACK_SPACE if getCaretPosition == 0 =>
+              event.consume()
+              mergeWithPreviousLine(this)
+            case KeyCode.DELETE if getCaretPosition == getLength =>
+              event.consume()
+              mergeWithNextLine(this)
+            case KeyCode.UP =>
+              event.consume()
+              moveFocus(this, -1)
+            case KeyCode.DOWN =>
+              event.consume()
+              moveFocus(this, 1)
             case _ =>
       )
+      AutoPairingSupport.install(this)
 
   def buildBlocks(code: String): Unit =
     blocksBox.children.clear()
     lineEditors.clear()
 
-    code.linesIterator.toSeq.zipWithIndex.foreach { case (line, index) =>
+    code.split("\n", -1).toSeq.zipWithIndex.foreach { case (line, index) =>
       val editor = createLineEditor(line)
 
       lineEditors += editor
@@ -101,3 +117,79 @@ final class BlockEditorView(
         ,
         editorNode
       )
+
+  private def splitLine(editor: CodeArea): Unit =
+    val index = lineEditors.indexOf(editor)
+
+    if index >= 0 then
+      val caret = editor.getCaretPosition
+      val text = editor.getText
+
+      val before = text.take(caret)
+      val after = text.drop(caret)
+
+      val lines = lineEditors.map(_.getText).toBuffer
+      lines.update(index, before)
+      lines.insert(index + 1, after)
+
+      buildBlocks(lines.mkString("\n"))
+
+      val nextEditor = lineEditors(index + 1)
+      nextEditor.requestFocus()
+      nextEditor.moveTo(0)
+
+      onCodeChanged(currentCode)
+
+  private def mergeWithPreviousLine(editor: CodeArea): Unit =
+    val index = lineEditors.indexOf(editor)
+
+    if index > 0 then
+      val lines = lineEditors.map(_.getText).toBuffer
+
+      val previous = lines(index - 1)
+      val current = lines(index)
+      val caretPosition = previous.length
+
+      lines.update(index - 1, previous + current)
+      lines.remove(index)
+
+      buildBlocks(lines.mkString("\n"))
+
+      val previousEditor = lineEditors(index - 1)
+      previousEditor.requestFocus()
+      previousEditor.moveTo(caretPosition)
+
+      onCodeChanged(currentCode)
+
+  private def mergeWithNextLine(editor: CodeArea): Unit =
+    val index = lineEditors.indexOf(editor)
+
+    if index >= 0 && index < lineEditors.length - 1 then
+      val lines = lineEditors.map(_.getText).toBuffer
+
+      val current = lines(index)
+      val next = lines(index + 1)
+      val caretPosition = current.length
+
+      lines.update(index, current + next)
+      lines.remove(index + 1)
+
+      buildBlocks(lines.mkString("\n"))
+
+      val currentEditor = lineEditors(index)
+      currentEditor.requestFocus()
+      currentEditor.moveTo(caretPosition)
+
+      onCodeChanged(currentCode)
+
+  private def moveFocus(editor: CodeArea, delta: Int): Unit =
+    val currentIndex = lineEditors.indexOf(editor)
+    val nextIndex = currentIndex + delta
+
+    if nextIndex >= 0 && nextIndex < lineEditors.length then
+      val caretColumn = editor.getCaretPosition.min(editor.getLength)
+      val nextEditor = lineEditors(nextIndex)
+      val nextCaret = caretColumn.min(nextEditor.getLength)
+
+      nextEditor.requestFocus()
+      nextEditor.moveTo(nextCaret)
