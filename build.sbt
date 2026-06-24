@@ -1,11 +1,15 @@
+name := "PPS-26-SoundCode"
+
+version := "0.1.0-SNAPSHOT"
+
 scalaVersion := "3.8.4"
 
-lazy val root = rootProject
+// Definisce il progetto radice nella cartella corrente (".")
+lazy val root = (project in file("."))
   .settings(
-    name := "SoundCode",
-    libraryDependencies ++= Seq(
-      //You can add library dependencies here, for example,
-      //"org.scalatest" %% "scalatest" % "3.2.19" % Test,
-      //"org.scalameta" %% "munit" % "1.2.3" % Test
-    )
+    // Puoi mettere altre impostazioni specifiche qui se serve
   )
+
+libraryDependencies ++= Seq(
+  "org.scalatest" %% "scalatest" % "3.2.18" % Test
+)
