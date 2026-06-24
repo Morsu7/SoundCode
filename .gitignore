@@ -57,3 +57,5 @@ project/**
 *.log
 *.synctex.gz
 *.pdf
+*.out
+*.toc
