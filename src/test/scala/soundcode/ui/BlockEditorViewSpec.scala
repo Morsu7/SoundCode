@@ -1,6 +1,6 @@
 package soundcode.ui
 
-import org.fxmisc.richtext.CodeArea
+import org.fxmisc.richtext.InlineCssTextArea
 
 import javafx.scene.control.Label
 import javafx.scene.layout.{HBox, VBox}
@@ -13,10 +13,13 @@ class BlockEditorViewSpec extends UITestSupport:
       |note("a3 c4 e4").sound("saw").gain(0.7)
       |stack(note("c5").sound("pluck"), sound("hh*8"))""".stripMargin
 
-  private def lineEditorAt(editor: BlockEditorView, index: Int): CodeArea =
+  private def lineEditorAt(
+      editor: BlockEditorView,
+      index: Int
+  ): InlineCssTextArea =
     val blocksBox = editor.root.content.value.asInstanceOf[VBox]
     val row = blocksBox.getChildren.get(index).asInstanceOf[HBox]
-    row.getChildren.get(1).asInstanceOf[CodeArea]
+    row.getChildren.get(1).asInstanceOf[InlineCssTextArea]
 
   test("block editor exposes the current code without changing it"):
     onFxThread:
@@ -71,9 +74,9 @@ class BlockEditorViewSpec extends UITestSupport:
       var lastChange = ""
 
       val editor = BlockEditorView(initialCode, code => lastChange = code)
-      val firstCodeArea = lineEditorAt(editor, 0)
+      val firstInlineCssTextArea = lineEditorAt(editor, 0)
 
-      firstCodeArea.replaceText("changed")
+      firstInlineCssTextArea.replaceText("changed")
 
       val expectedCode = initialCode
         .split("\n", -1)

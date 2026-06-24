@@ -6,6 +6,8 @@ import scalafx.scene.control.ToolBar
 import scalafx.scene.control.Button
 import scalafx.scene.control.Label
 
+import javafx.event.{ActionEvent, EventHandler}
+
 class MainView:
   private val editorView =
     BlockEditorView(

@@ -6,7 +6,7 @@ import java.util.concurrent.atomic.AtomicReference
 import javafx.scene.input.{KeyEvent, KeyCode}
 import scalafx.application.Platform
 import org.scalatest.funsuite.AnyFunSuite
-import org.fxmisc.richtext.CodeArea
+import org.fxmisc.richtext.InlineCssTextArea
 
 trait UITestSupport extends AnyFunSuite:
   // ensures tests create and inspect JavaFX components on the JavaFX Application Thread.
@@ -29,7 +29,10 @@ trait UITestSupport extends AnyFunSuite:
     if error.get() != null then throw error.get()
     result.get()
 
-  protected def fireKeyTyped(editor: CodeArea, character: String): Unit =
+  protected def fireKeyTyped(
+      editor: InlineCssTextArea,
+      character: String
+  ): Unit =
     editor.fireEvent(
       new KeyEvent(
         KeyEvent.KEY_TYPED,
@@ -43,7 +46,10 @@ trait UITestSupport extends AnyFunSuite:
       )
     )
 
-  protected def fireKeyPressed(editor: CodeArea, keyCode: KeyCode): Unit =
+  protected def fireKeyPressed(
+      editor: InlineCssTextArea,
+      keyCode: KeyCode
+  ): Unit =
     editor.fireEvent(
       new KeyEvent(
         KeyEvent.KEY_PRESSED,

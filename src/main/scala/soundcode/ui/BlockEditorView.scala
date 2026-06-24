@@ -4,7 +4,7 @@ import javafx.scene.input.{KeyCode, KeyEvent}
 import scalafx.scene.layout.VBox
 import scalafx.geometry.Insets
 import scalafx.scene.control.ScrollPane
-import org.fxmisc.richtext.CodeArea
+import org.fxmisc.richtext.InlineCssTextArea
 import scalafx.scene.layout.HBox
 import scalafx.Includes.jfxNode2sfx
 import scalafx.scene.layout.Priority
@@ -18,7 +18,7 @@ final class BlockEditorView(
 ):
   private val LineHeight = 34
 
-  private val lineEditors = Buffer.empty[CodeArea]
+  private val lineEditors = Buffer.empty[InlineCssTextArea]
 
   private val blocksBox = new VBox:
     spacing = 2
@@ -35,8 +35,8 @@ final class BlockEditorView(
   def currentCode: String =
     lineEditors.map(_.getText).mkString("\n")
 
-  def createLineEditor(text: String): CodeArea =
-    new CodeArea:
+  def createLineEditor(text: String): InlineCssTextArea =
+    new InlineCssTextArea:
       replaceText(text)
       setPrefHeight(LineHeight)
       setMinHeight(LineHeight)
@@ -51,6 +51,7 @@ final class BlockEditorView(
           |""".stripMargin
       )
       textProperty().addListener { (_, _, _) =>
+        SyntaxHighlighter.applyTo(this)
         onCodeChanged(currentCode)
       }
       addEventFilter(
@@ -75,6 +76,10 @@ final class BlockEditorView(
             case _ =>
       )
       AutoPairingSupport.install(this)
+      SyntaxHighlighter.applyTo(this)
+
+  private def applySyntaxHighlighting(editor: InlineCssTextArea): Unit =
+    val text = editor.getText
 
   def buildBlocks(code: String): Unit =
     blocksBox.children.clear()
@@ -89,7 +94,7 @@ final class BlockEditorView(
     // TODO: Visualize notes with pianoroll or scope
     }
 
-  private def codeLineRow(editor: CodeArea, lineNumber: Int): HBox =
+  private def codeLineRow(editor: InlineCssTextArea, lineNumber: Int): HBox =
     val editorNode = jfxNode2sfx(editor)
     HBox.setHgrow(editorNode, Priority.Always)
 
@@ -118,7 +123,7 @@ final class BlockEditorView(
         editorNode
       )
 
-  private def splitLine(editor: CodeArea): Unit =
+  private def splitLine(editor: InlineCssTextArea): Unit =
     val index = lineEditors.indexOf(editor)
 
     if index >= 0 then
@@ -140,7 +145,7 @@ final class BlockEditorView(
 
       onCodeChanged(currentCode)
 
-  private def mergeWithPreviousLine(editor: CodeArea): Unit =
+  private def mergeWithPreviousLine(editor: InlineCssTextArea): Unit =
     val index = lineEditors.indexOf(editor)
 
     if index > 0 then
@@ -161,7 +166,7 @@ final class BlockEditorView(
 
       onCodeChanged(currentCode)
 
-  private def mergeWithNextLine(editor: CodeArea): Unit =
+  private def mergeWithNextLine(editor: InlineCssTextArea): Unit =
     val index = lineEditors.indexOf(editor)
 
     if index >= 0 && index < lineEditors.length - 1 then
@@ -182,7 +187,7 @@ final class BlockEditorView(
 
       onCodeChanged(currentCode)
 
-  private def moveFocus(editor: CodeArea, delta: Int): Unit =
+  private def moveFocus(editor: InlineCssTextArea, delta: Int): Unit =
     val currentIndex = lineEditors.indexOf(editor)
     val nextIndex = currentIndex + delta
 

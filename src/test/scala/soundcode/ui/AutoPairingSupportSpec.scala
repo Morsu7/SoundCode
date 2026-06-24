@@ -1,11 +1,11 @@
 package soundcode.ui
 
-import org.fxmisc.richtext.CodeArea
+import org.fxmisc.richtext.InlineCssTextArea
 
 class AutoPairingSupportSpec extends UITestSupport:
   test("auto pairing inserts parentheses, brackets, braces and quotes"):
     onFxThread:
-      val editor = new CodeArea
+      val editor = new InlineCssTextArea
       AutoPairingSupport.install(editor)
 
       fireKeyTyped(editor, "(")
@@ -18,11 +18,11 @@ class AutoPairingSupportSpec extends UITestSupport:
       assert(editor.getCaretPosition == 3)
 
       editor.moveTo(editor.getLength)
-      fireKeyTyped(editor, "{")
-      assert(editor.getText == "()[]{}")
+      fireKeyTyped(editor, "<")
+      assert(editor.getText == "()[]<>")
       assert(editor.getCaretPosition == 5)
 
       editor.moveTo(editor.getLength)
       fireKeyTyped(editor, "\"")
-      assert(editor.getText == "()[]{}\"\"")
+      assert(editor.getText == "()[]<>\"\"")
       assert(editor.getCaretPosition == 7)

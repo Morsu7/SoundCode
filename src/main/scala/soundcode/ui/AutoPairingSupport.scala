@@ -2,10 +2,10 @@ package soundcode.ui
 
 import javafx.scene.input.KeyEvent
 
-import org.fxmisc.richtext.CodeArea
+import org.fxmisc.richtext.InlineCssTextArea
 
 object AutoPairingSupport:
-  def install(editor: CodeArea): Unit =
+  def install(editor: InlineCssTextArea): Unit =
     editor.addEventFilter(
       KeyEvent.KEY_TYPED,
       (event: KeyEvent) =>
@@ -23,18 +23,22 @@ object AutoPairingSupport:
             event.consume()
             insertPair(editor, "[", "]")
 
-          case "{" =>
+          case "<" =>
             event.consume()
-            insertPair(editor, "{", "}")
+            insertPair(editor, "<", ">")
 
           case _ =>
     )
 
-  private def insertPair(editor: CodeArea, open: String, close: String): Unit =
+  private def insertPair(
+      editor: InlineCssTextArea,
+      open: String,
+      close: String
+  ): Unit =
     val caret = editor.getCaretPosition
     editor.insertText(caret, open + close)
     editor.moveTo(caret + open.length)
 
-  private def shouldInsertClosingQuote(editor: CodeArea): Boolean =
+  private def shouldInsertClosingQuote(editor: InlineCssTextArea): Boolean =
     val before = editor.getText.take(editor.getCaretPosition)
     before.count(_ == '"') % 2 == 0
