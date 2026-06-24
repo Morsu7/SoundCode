@@ -1,76 +1,154 @@
 package soundcode.parser
 
 import org.scalatest.funsuite.AnyFunSuite
-import soundcode.parser.AST._
 import fastparse._
+import soundcode.parser.AST._
 
-class ProgramParserSuite extends AnyFunSuite {
+class SoundCodeParserSuite extends AnyFunSuite {
 
-    def parse(input: String) = {
-        val parser = new SoundCodeParser()
-        parser.parseProgram(input)
+    private def parse(input: String) = {
+        val res = new SoundCodeParser().parseProgram(input)
+        println(s"\nINPUT: $input")
+        
+        res match {
+            case Parsed.Success(ast, _) => 
+            println(s"OUTPUT:\n$ast\n") // Stampa solo l'albero pulito
+            case f: Parsed.Failure => 
+            println(s"OUTPUT: Failure -> ${f.msg}\n")
+        }
+        res
     }
 
-    def debugParse(input: String) = {
-        val parser = new SoundCodeParser()
-        val result = parser.parseProgram(input)
-
-        println(s"INPUT: $input")
-        println(s"RESULT: $result")
-
-        result match {
+    test("single sound block") {
+        parse("sound(bd)") match {
         case Parsed.Success(ast, _) =>
-            println(s"AST: $ast")
-        case Parsed.Failure(_, index, _) =>
-            println(s"FAILED at $index")
-        }
+            val block = ast.blocks.head.asInstanceOf[SoundBlock]
+            
+            val expected = Pattern(List(
+            Sequence(List(
+                AtomElement(Sample("bd"))
+            ))
+            ))
+            assert(block.pattern == expected)
 
-        println("--------------")
-        result
-    }
-
-    test("parse note without attachment") {
-        parse("note(C)") match {
-            case Parsed.Success(ast, _) =>
-            assert(ast.blocks.length == 1)
-
-            val note = ast.blocks.head.asInstanceOf[Note]
-            assert(note.value == Ident("C"))
-            assert(note.attachment.isEmpty)
-
-            case f: Parsed.Failure =>
-            fail(s"failed: $f")
+        case f: Parsed.Failure =>
+            fail(s"Parsing failed: ${f.msg}")
         }
     }
 
-    test("parse sound block") {
-        parse("sound(C)") match {
-            case Parsed.Success(ast, _) =>
-            assert(ast.blocks.length == 1)
+    test("single note block") {
+        parse("note(c4)") match {
+        case Parsed.Success(ast, _) =>
+            val block = ast.blocks.head.asInstanceOf[NoteBlock]
 
-            val sound = ast.blocks.head.asInstanceOf[Sound]
-            assert(sound.value == Ident("C"))
+            val expected = Pattern(List(
+            Sequence(List(
+                AtomElement(Note("c4"))
+            ))
+            ))
+            assert(block.pattern == expected)
 
-            case f: Parsed.Failure =>
-            fail(s"failed: $f")
+        case f: Parsed.Failure =>
+            fail(s"Parsing failed: ${f.msg}")
         }
     }
 
-    test("parse note with sound attachment") {
-        parse("note(C).sound(D)") match {
-            case Parsed.Success(ast, _) =>
-            assert(ast.blocks.length == 1)
+    test("sequence in sound block") {
+        // Nota: rimosse le quadre esterne superflue se vuoi testare una sequenza pura "bd hh sd",
+        // oppure mantenute se l'obiettivo è testare esplicitamente un SubPatternElement.
+        parse("sound([bd hh sd])") match {
+        case Parsed.Success(ast, _) =>
+            val block = ast.blocks.head.asInstanceOf[SoundBlock]
 
-            val note = ast.blocks.head.asInstanceOf[Note]
+            val expected = Pattern(List(
+            Sequence(List(
+                SubPatternElement(Pattern(List(
+                Sequence(List(
+                    AtomElement(Sample("bd")),
+                    AtomElement(Sample("hh")),
+                    AtomElement(Sample("sd"))
+                ))
+                )))
+            ))
+            ))
+            assert(block.pattern == expected)
 
-            assert(note.value == Ident("C"))
-            assert(note.attachment.nonEmpty)
+        case f: Parsed.Failure =>
+            fail(s"Parsing failed: ${f.msg}")
+        }
+    }
 
-            val attachment = note.attachment.get
-            assert(attachment.value == Ident("D"))
+    test("parallel in sound block") {
+        parse("sound(bd,hh,sd)") match {
+        case Parsed.Success(ast, _) =>
+            val block = ast.blocks.head.asInstanceOf[SoundBlock]
 
-            case f: Parsed.Failure =>
-            fail(s"failed: $f")
+            val expected = Pattern(List(
+            Sequence(List(AtomElement(Sample("bd")))),
+            Sequence(List(AtomElement(Sample("hh")))),
+            Sequence(List(AtomElement(Sample("sd"))))
+            ))
+            assert(block.pattern == expected)
+
+        case f: Parsed.Failure =>
+            fail(s"Parsing failed: ${f.msg}")
+        }
+    }
+
+    test("note + sound attachment") {
+        parse("note(c4).sound(bd)") match {
+        case Parsed.Success(ast, _) =>
+            val noteBlock = ast.blocks.head.asInstanceOf[NoteBlock]
+
+            assert(noteBlock.attachment.isDefined)
+            val attachedSound = noteBlock.attachment.get
+            
+            val expectedSoundPattern = Pattern(List(
+            Sequence(List(AtomElement(Sample("bd"))))
+            ))
+            assert(attachedSound.pattern == expectedSoundPattern)
+
+        case f: Parsed.Failure =>
+            fail(s"Parsing failed: ${f.msg}")
+        }
+    }
+
+    test("multiple blocks") {
+        parse("sound(bd)\nnote(c4)\nsound(hh)") match {
+        case Parsed.Success(ast, _) =>
+            assert(ast.blocks.length == 3)
+            assert(ast.blocks(0).isInstanceOf[SoundBlock])
+            assert(ast.blocks(1).isInstanceOf[NoteBlock])
+            assert(ast.blocks(2).isInstanceOf[SoundBlock])
+
+        case f: Parsed.Failure =>
+            fail(s"Parsing failed: ${f.msg}")
+        }
+    }
+
+    test("complex mixed pattern") {
+        parse("sound([bd hh],sd)") match {
+        case Parsed.Success(ast, _) =>
+            val block = ast.blocks.head.asInstanceOf[SoundBlock]
+
+            // "[bd hh],sd" -> Pattern con 2 sequenze parallele (separate da virgola)
+            val expected = Pattern(List(
+            Sequence(List(
+                SubPatternElement(Pattern(List(
+                Sequence(List(
+                    AtomElement(Sample("bd")),
+                    AtomElement(Sample("hh"))
+                ))
+                )))
+            )),
+            Sequence(List(
+                AtomElement(Sample("sd"))
+            ))
+            ))
+            assert(block.pattern == expected)
+
+        case f: Parsed.Failure =>
+            fail(s"Parsing failed: ${f.msg}")
         }
     }
 }
