@@ -1,5 +1,3 @@
 package soundcode.domain
 
-class Domain {
-
-}
+case class Note(name: String, duration: Int)
