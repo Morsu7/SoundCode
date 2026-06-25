@@ -11,11 +11,11 @@ class SoundCodeParser {
     It takes a string input and returns a Parsed[ProgramAST] result, which can be either a success or a failure.
   **/
   def parseProgram(input: String): Parsed[ProgramAST] = {
-    parse(input, prog(using _))
+    parse(input, prog(using _)) 
   }
 
   private def prog(using P[?]): P[ProgramAST] = 
-    P(streamBlock.rep(1, sep = P("\n"))).map(streams => ProgramAST(streams.toList)) // One or more audio Streams
+    P( streamBlock.rep(1, sep = P("\n".rep())) ~ End ).map(streams => ProgramAST(streams.toList)) // One or more audio Streams
 
   // A "stream" is a generative block optionally chained with generative or transformation blocks
   private def streamBlock(using P[?]): P[StreamBlock] =
@@ -30,18 +30,20 @@ class SoundCodeParser {
     P( generativeBlock.map(GenerativeExtensionBlock.apply) | transformationBlock.map(TransformationExtensionBlock.apply) )
 
   private def noteBlock(using P[?]): P[NoteBlock] =
-    P( "note" ~ "(" ~ pattern(noteAtom) ~ ")" ).map( NoteBlock.apply )
+    P( "note" ~ "(" ~ ws ~ wrappedPattern(noteAtom) ~ ws ~ ")" ).map( NoteBlock.apply )
 
-  private def soundBlock(using P[?]): P[SoundBlock] =
-    P( "sound" ~ "(" ~ pattern(sampleAtom) ~ ")" ).map( SoundBlock.apply )
+  private def soundBlock(using P[?]): P[SoundBlock] = 
+    P( "sound" ~ "(" ~ ws ~ wrappedPattern(sampleAtom) ~ ws ~ ")" ).map(SoundBlock.apply)
 
-  // A pattern is a series of sequences played in parallel, each sequence lasts exactly for a cycle
+  private def wrappedPattern[T <: Atom](atom: => P[T])(using P[?]): P[Pattern[T]] =
+    P( "\"" ~ ws ~ pattern(atom) ~ ws ~ "\"" ) // Tollera "   hh   "
+
   private def pattern[T <: Atom](atom: => P[T])(using P[?]): P[Pattern[T]] =
-    P( sequence(atom).rep(1, sep = P( CharsWhileIn(" \t").? ~ "," ~ CharsWhileIn(" \t").? )) ).map(seq => Pattern(seq.toList))
+    P( sequence(atom).rep(1, sep = P( ws ~ "," ~ ws )) ).map(seq => Pattern(seq.toList))
 
   // A sequence is a series of elements played in sequence, each element lasts for a fraction of the cycle
   private def sequence[T <: Atom](atom: => P[T])(using P[?]): P[Sequence[T]] =
-    P( element(atom).rep(1, sep = P( CharsWhileIn(" \t") )) ).map(seq => Sequence(seq.toList))
+    P( element(atom).rep(1, sep = P( ws )) ).map(seq => Sequence(seq.toList))
     
   // An element is either an atom (note/sample) or a sub-pattern
   private def element[T <: Atom](atom: => P[T])(using P[?]): P[Element[T]] =
@@ -50,74 +52,86 @@ class SoundCodeParser {
       subPattern(atom).map(s => s: Element[T]) | 
       alternationPattern(atom).map(a => a: Element[T])
     )
-
-  // A sub-pattern is a pattern enclosed in square brackets ([...])
+  
   private def subPattern[T <: Atom](atom: => P[T])(using P[?]): P[SubPatternElement[T]] =
-    P( "[" ~ pattern(atom) ~ "]" ).map(SubPatternElement.apply)
+    P( "[" ~ ws ~ pattern(atom) ~ ws ~ "]" ).map(SubPatternElement.apply)
 
   private def alternationPattern[T <: Atom](atom: => P[T])(using P[?]): P[AlternationElement[T]] =
-    P( "<" ~ pattern(atom) ~ ">" ).map(AlternationElement.apply)
+    P( "<" ~ ws ~ pattern(atom) ~ ws ~ ">" ).map(AlternationElement.apply)
 
   /*
     ---------- TRANS PARSER ----------
   */
+
+  // clean rules for transformations permitted in juxtaposition and offset, without the unknown extension
+  private def inlineTransformation(using P[?]): P[TransformationBlock] = P(
+    gain | pan | room | delay | lowPassFilter | highPassFilter | 
+    fastForward | slowMotion | early | late | reverse | repetition
+  )
+
   private def transformationBlock(using P[?]): P[TransformationBlock] =
   P(
-    gain 
-      | pan 
-      | room 
-      | delay 
-      | lowPassFilter 
-      | highPassFilter 
-      | fastForward
-      | slowMotion
-      | early
-      | late
-      | reverse
-      | repetition
+    inlineTransformation 
+      | offset 
+      | juxtaposition
       | unknownExtension
   )
 
   private def unknownExtension(using P[?]): P[Unknown] = P(
-    identifier ~ "(" ~ pattern(configAtom) ~ ")"
+    identifier ~ "(" ~ wrappedPattern(configAtom) ~ ")"
   ).map { case (name, pat) => Unknown(name, pat) }
   
   private def gain(using P[?]): P[Gain] =
-    P( "gain" ~ "(" ~ pattern(configAtom) ~ ")" ).map(Gain.apply)
 
+    P( "gain" ~ "(" ~ ws ~ wrappedPattern(configAtom) ~ ws ~ ")" ).map(Gain.apply)
   private def pan(using P[?]): P[Pan] =
-    P( "pan" ~ "(" ~ pattern(configAtom) ~ ")" ).map(Pan.apply)
+    P( "pan" ~ "(" ~ ws ~ wrappedPattern(configAtom) ~ ws ~ ")" ).map(Pan.apply)
   
   private def room(using P[?]): P[Room] =
-    P( "room" ~ "(" ~ pattern(configAtom) ~ ")" ).map(Room.apply)
+    P( "room" ~ "(" ~ ws ~ wrappedPattern(configAtom) ~ ws ~ ")" ).map(Room.apply)
 
   private def delay(using P[?]): P[Delay] =
-    P( "delay" ~ "(" ~ pattern(configAtom) ~ ")" ).map(Delay.apply)
+    P( "delay" ~ "(" ~ ws ~ wrappedPattern(configAtom) ~ ws ~ ")" ).map(Delay.apply)
 
   private def lowPassFilter(using P[?]): P[LowPassFilter] =
-    P( "lpf" ~ "(" ~ pattern(configAtom) ~ ")" ).map(LowPassFilter.apply)
+    P( "lpf" ~ "(" ~ ws ~ wrappedPattern(configAtom) ~ ws ~ ")" ).map(LowPassFilter.apply)
 
   private def highPassFilter(using P[?]): P[HighPassFilter] =
-    P( "hpf" ~ "(" ~ pattern(configAtom) ~ ")" ).map(HighPassFilter.apply)
+    P( "hpf" ~ "(" ~ ws ~ wrappedPattern(configAtom) ~ ws ~ ")" ).map(HighPassFilter.apply)
 
   private def fastForward(using P[?]): P[FastForward] =
-    P( "fast" ~ "(" ~ pattern(configAtom) ~ ")" ).map(FastForward.apply)
+    P( "fast" ~ "(" ~ ws ~ wrappedPattern(configAtom) ~ ws ~ ")" ).map(FastForward.apply)
 
   private def slowMotion(using P[?]): P[SlowMotion] =
-    P( "slow" ~ "(" ~ pattern(configAtom) ~ ")" ).map(SlowMotion.apply)
+    P( "slow" ~ "(" ~ ws ~ wrappedPattern(configAtom) ~ ws ~ ")" ).map(SlowMotion.apply)
 
   private def early(using P[?]): P[Early] =
-    P( "early" ~ "(" ~ pattern(configAtom) ~ ")" ).map(Early.apply)
+    P( "early" ~ "(" ~ ws ~ wrappedPattern(configAtom) ~ ws ~ ")" ).map(Early.apply)
 
   private def late(using P[?]): P[Late] =
-    P( "late" ~ "(" ~ pattern(configAtom) ~ ")" ).map(Late.apply)
+    P( "late" ~ "(" ~ ws ~ wrappedPattern(configAtom) ~ ws ~ ")" ).map(Late.apply)
 
   private def reverse(using P[?]): P[Reverse] =
     P( "rev()" ).map(_ => Reverse())
 
   private def repetition(using P[?]): P[Repetition] =
-    P( "ply" ~ "(" ~ pattern(configAtom) ~ ")" ).map(Repetition.apply)
+    P( "ply" ~ "(" ~ ws ~ wrappedPattern(configAtom) ~ ws ~ ")" ).map(Repetition.apply)
 
+  private def juxtaposition(using P[?]): P[Juxtaposition] = 
+    P( 
+      "jux" ~ "(" ~ ws ~ 
+      inlineTransformation.rep(1, sep = P(ws ~ "," ~ ws)) ~ 
+      ws ~ ")" 
+    ).map(transSeq => Juxtaposition(transSeq.toList))
+
+  private def offset(using P[?]): P[Offset] = 
+    P( 
+      "off" ~ "(" ~ ws ~ wrappedPattern(configAtom) ~ ws ~ "," ~ ws ~ 
+      inlineTransformation.rep(1, sep = CharsWhileIn(" \t", 1)) ~ 
+      ws ~ ")" 
+    ).map { case (offsetPattern, transSeq) => 
+      Offset(offsetPattern, transSeq.toList) 
+    }
   /*
     ---------- ATOMS PARSER ----------
   */
@@ -139,4 +153,7 @@ class SoundCodeParser {
   */
   // parser for generic names
   private def identifier(using P[?]): P[String] = P( CharsWhileIn("a-zA-Z").! )
+
+  // parser for whitespace (spaces and tabs)
+  private def ws(using P[?]): P[Unit] = P( CharsWhileIn(" \t", 0) )
 }

@@ -7,21 +7,23 @@ import soundcode.parser.AST.Transformations._
 
 class SoundCodeParserSuite extends AnyFunSuite {
 
+    private def DEBUG = true
+
     private def parse(input: String) = {
         val res = new SoundCodeParser().parseProgram(input)
-        //println(s"\nINPUT: $input")
-        
-        /*res match {
-            case Parsed.Success(ast, _) => 
-            println(s"OUTPUT:\n$ast\n") // Stampa solo l'albero pulito
-            case f: Parsed.Failure => 
-            println(s"OUTPUT: Failure -> ${f.msg}\n")
-        }*/
+        if (DEBUG) 
+            println(s"\nINPUT: $input")
+            res match {
+                case Parsed.Success(ast, _) => 
+                println(s"OUTPUT:\n$ast\n") // Stampa solo l'albero pulito
+                case f: Parsed.Failure => 
+                println(s"OUTPUT: Failure -> ${f.msg}\n")
+            }
         res
     }
 
     test("single sound block") {
-        parse("sound(bd)") match {
+        parse("sound(\"bd\")") match {
         case Parsed.Success(ast, _) =>
             val stream = ast.blocks.head.asInstanceOf[StreamBlock]
             val block = stream.base.asInstanceOf[SoundBlock]
@@ -39,7 +41,7 @@ class SoundCodeParserSuite extends AnyFunSuite {
     }
 
     test("single note block") {
-        parse("note(c4)") match {
+        parse("note(\"c4\")") match {
         case Parsed.Success(ast, _) =>
             val stream = ast.blocks.head.asInstanceOf[StreamBlock]
             val block = stream.base.asInstanceOf[NoteBlock]
@@ -57,9 +59,7 @@ class SoundCodeParserSuite extends AnyFunSuite {
     }
 
     test("sequence in sound block") {
-        // Nota: rimosse le quadre esterne superflue se vuoi testare una sequenza pura "bd hh sd",
-        // oppure mantenute se l'obiettivo è testare esplicitamente un SubPatternElement.
-        parse("sound([bd hh sd])") match {
+        parse("sound(\"[bd hh sd]\")") match {
         case Parsed.Success(ast, _) =>
             val stream = ast.blocks.head.asInstanceOf[StreamBlock]
             val block = stream.base.asInstanceOf[SoundBlock]
@@ -83,14 +83,11 @@ class SoundCodeParserSuite extends AnyFunSuite {
     }
 
     test("alternation in sound block") {
-        parse("sound(bd <hh oh>)") match {
+        parse("sound(\"bd <hh oh>\")") match {
         case Parsed.Success(ast, _) =>
             val stream = ast.blocks.head.asInstanceOf[StreamBlock]
             val block = stream.base.asInstanceOf[SoundBlock]
 
-            // Struttura attesa: un ciclo con una sequenza di 2 elementi:
-            // 1. L'atomo "bd"
-            // 2. L'AlternationElement che contiene a sua volta "hh" e "oh"
             val expected = Pattern(List(
             Sequence(List(
                 AtomElement(Sample("bd")),
@@ -110,7 +107,7 @@ class SoundCodeParserSuite extends AnyFunSuite {
     }
 
     test("parallel in sound block") {
-        parse("sound(bd,hh,sd)") match {
+        parse("sound(\"bd,hh,sd\")") match {
         case Parsed.Success(ast, _) =>
             val stream = ast.blocks.head.asInstanceOf[StreamBlock]
             val block = stream.base.asInstanceOf[SoundBlock]
@@ -125,7 +122,7 @@ class SoundCodeParserSuite extends AnyFunSuite {
     }
 
     test("note + sound attachment") {
-        parse("note(c4).sound(bd)") match {
+        parse("note(\"c4\").sound(\"bd\")") match {
         case Parsed.Success(ast, _) =>
             val stream = ast.blocks.head.asInstanceOf[StreamBlock]
             val noteBlock = stream.base.asInstanceOf[NoteBlock]
@@ -144,7 +141,7 @@ class SoundCodeParserSuite extends AnyFunSuite {
     }
 
     test("multiple blocks") {
-        parse("sound(bd)\nnote(c4)\nsound(hh)") match {
+        parse("sound(\"bd\")\nnote(\"c4\")\nsound(\"hh\")") match {
         case Parsed.Success(ast, _) =>
             assert(ast.blocks.length == 3)
             assert(ast.blocks(0).asInstanceOf[StreamBlock].base.isInstanceOf[SoundBlock])
@@ -157,7 +154,7 @@ class SoundCodeParserSuite extends AnyFunSuite {
     }
 
     test("complex mixed pattern") {
-        parse("sound(bd hh, [bd <hh oh>])") match {
+        parse("sound(\"bd hh, [bd <hh oh>]\")") match {
         case Parsed.Success(ast, _) =>
             val stream = ast.blocks.head.asInstanceOf[StreamBlock]
             val block = stream.base.asInstanceOf[SoundBlock]
@@ -187,7 +184,7 @@ class SoundCodeParserSuite extends AnyFunSuite {
     }
 
     test("single stream with no extensions") {
-        val input = "sound(bd)"
+        val input = "sound(\"bd\")"
         val result = parse(input)
         
         assert(result.isInstanceOf[fastparse.Parsed.Success[?]])
@@ -199,7 +196,7 @@ class SoundCodeParserSuite extends AnyFunSuite {
     }
 
     test("mixed chain: generative + transformation") {
-        val input = "note(c4).sound(bd).gain(0.8)"
+        val input = "note(\"c4\").sound(\"bd\").gain(\"0.8\")"
         val result = parse(input)
         
         assert(result.isInstanceOf[fastparse.Parsed.Success[?]])
@@ -218,7 +215,7 @@ class SoundCodeParserSuite extends AnyFunSuite {
     }
 
     test("multiple chains on multiple lines") {
-        val input = "sound(hh).fast(2)\nnote(e3).pan(0.1)"
+        val input = "sound(\"hh\").fast(\"2\")\nnote(\"e3\").pan(\"0.1\")"
             
         val result = parse(input)
         assert(result.isInstanceOf[fastparse.Parsed.Success[?]])
@@ -228,14 +225,14 @@ class SoundCodeParserSuite extends AnyFunSuite {
     }
 
     test("parsing failure for invalid input") {
-        val input = ".gain(0.8).sound(bd)"
+        val input = ".gain(\"0.8\").sound(\"bd\")"
         val result = parse(input)
         
         assert(result.isInstanceOf[fastparse.Parsed.Failure])
     }
 
     test("unknown transformation block") {
-        val input = "sound(bd).customTransform(1.5)"
+        val input = "sound(\"bd\").customTransform(\"1.5\")"
         val result = parse(input)
         
         assert(result.isInstanceOf[fastparse.Parsed.Success[?]])
@@ -254,7 +251,7 @@ class SoundCodeParserSuite extends AnyFunSuite {
     }
 
     test("using complex patterns in transformations") {
-        val input = "sound(bd).gain([0.5 0.8])"
+        val input = "sound(\"bd\").gain(\"[0.5 0.8]\")"
         val result = parse(input)
         
         assert(result.isInstanceOf[fastparse.Parsed.Success[?]])
@@ -289,7 +286,7 @@ class SoundCodeParserSuite extends AnyFunSuite {
 
     test("all transformations chain verification") {
         // giant chain with all transformations
-        val input = "sound(bd).rev().gain(0.8).pan(0.5).room(0.2).delay(0.1).lpf(500).hpf(1000).fast(2).slow(0.5).early(0.1).late(0.2).ply(4)"
+        val input = "sound(\"bd\").rev().gain(\"0.8\").pan(\"0.5\").room(\"0.2\").delay(\"0.1\").lpf(\"500\").hpf(\"1000\").fast(\"2\").slow(\"0.5\").early(\"0.1\").late(\"0.2\").ply(\"4\")"
         
         val result = parse(input)
         assert(result.isInstanceOf[fastparse.Parsed.Success[?]])
@@ -313,5 +310,92 @@ class SoundCodeParserSuite extends AnyFunSuite {
         assert(extensions(9).isInstanceOf[Early])
         assert(extensions(10).isInstanceOf[Late])
         assert(extensions(11).isInstanceOf[Repetition])
+    }
+
+    test("parsing offset with multiple transformations separated by spaces") {
+        val input = "sound(\"bd\").off(\"0.25\", rev() gain(\"0.8\") lpf(\"500\"))"
+        val result = parse(input)
+        
+        assert(result.isInstanceOf[fastparse.Parsed.Success[?]])
+        val program = result.get.value
+        println(s"Parsed AST:\n$program\n")
+        val stream = program.blocks.head.asInstanceOf[StreamBlock]
+        
+        val offBlock = stream.extensions.head.asInstanceOf[TransformationExtensionBlock].block.asInstanceOf[Offset]
+
+        assert(offBlock.offset.elems.size == 1)
+        
+        assert(offBlock.transformations.size == 3)
+        assert(offBlock.transformations(0).isInstanceOf[Reverse])
+        assert(offBlock.transformations(1).isInstanceOf[Gain])
+        assert(offBlock.transformations(2).isInstanceOf[LowPassFilter])
+    }
+
+    test("parsing offset with mini-notation and spaces") {
+        val input = "sound(\"bd\").off(\"[0.25 0.5]\" ,  rev())"
+        val result = parse(input)
+        
+        assert(result.isInstanceOf[fastparse.Parsed.Success[?]])
+        val program = result.get.value
+        val stream = program.blocks.head.asInstanceOf[StreamBlock]
+        
+        val offBlock = stream.extensions.head.asInstanceOf[TransformationExtensionBlock].block.asInstanceOf[Offset]
+        
+        assert(offBlock.offset.elems.head.elems.head.isInstanceOf[SubPatternElement[?]])
+        assert(offBlock.transformations.size == 1)
+        assert(offBlock.transformations.head.isInstanceOf[Reverse])
+    }
+
+    test("parsing juxtaposition with multiple transformations separated by commas") {
+        val input = "sound(\"hh\").jux(rev() ,gain(\"0.5\"),  pan(\"0.2\"))"
+        val result = parse(input)
+        
+        assert(result.isInstanceOf[fastparse.Parsed.Success[?]])
+        val program = result.get.value
+        val stream = program.blocks.head.asInstanceOf[StreamBlock]
+        
+        val juxBlock = stream.extensions.head.asInstanceOf[TransformationExtensionBlock].block.asInstanceOf[Juxtaposition]
+        
+        assert(juxBlock.transformations.size == 3)
+        assert(juxBlock.transformations(0).isInstanceOf[Reverse])
+        assert(juxBlock.transformations(1).isInstanceOf[Gain])
+        assert(juxBlock.transformations(2).isInstanceOf[Pan])
+    }
+
+    test("parsing failure for offset missing comma separator") {
+        val input = "sound(\"bd\").off(\"0.25\" rev())"
+        val result = parse(input)
+        
+        assert(result.isInstanceOf[fastparse.Parsed.Failure])
+    }
+
+    test("parsing failure for offset missing transformations") {
+        val input = "sound(\"bd\").off(\"0.25\", )"
+        val result = parse(input)
+        
+        assert(result.isInstanceOf[fastparse.Parsed.Failure])
+    }
+
+    test("parsing failure for juxtaposition separated by spaces instead of commas") {
+        val input = "sound(\"hh\").jux(rev() gain(\"0.5\"))"
+        val result = parse(input)
+        
+        assert(result.isInstanceOf[fastparse.Parsed.Failure])
+    }
+
+    test("parsing failure for empty juxtaposition") {
+        val input = "sound(\"hh\").jux()"
+        val result = parse(input)
+        
+        assert(result.isInstanceOf[fastparse.Parsed.Failure])
+    }
+
+    test("parsing with whitespace tolerance") {
+        val input = "sound(  \" bd     \").gain(\"0.8    \")\n\nnote(\"    c4\" ).pan( \"0.5\"  )"
+        val result = parse(input)
+        
+        assert(result.isInstanceOf[fastparse.Parsed.Success[?]])
+        val program = result.get.value
+        assert(program.blocks.size == 2)
     }
 }

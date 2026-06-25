@@ -52,8 +52,19 @@ object ASTPrinter {
           case Early(p)           => formatTransWithParam("early", p, nextIndent, indent, marker)
           case Late(p)            => formatTransWithParam("late", p, nextIndent, indent, marker)
           case Repetition(p)      => formatTransWithParam("ply", p, nextIndent, indent, marker)
-
-          case _ => formatTransWithParam("unknown", Pattern(List()), nextIndent, indent, marker) // For unknown transformations, we don't have a pattern to display
+          case Juxtaposition(transList) =>
+            val transStr = transList.zipWithIndex.map { case (trans, idx) =>
+              formatBlock(trans, nextIndent, idx == transList.size - 1)
+            }.mkString("\n")
+            s"$indent${marker}TransformationBlock: .jux(...)\n$transStr"
+          case Offset(offsetPat, transList) =>
+            val offsetStr = formatPattern(offsetPat, nextIndent, isLast = false)
+            val transStr = transList.zipWithIndex.map { case (trans, idx) =>
+              formatBlock(trans, nextIndent, idx == transList.size - 1)
+            }.mkString("\n")
+            s"$indent${marker}TransformationBlock: .off(...)\n$offsetStr\n$transStr"
+            
+          case Unknown(name, pat) => formatTransWithParam("unknown", pat, nextIndent, indent, marker) // For unknown transformations, we don't have a pattern to display
         }
 
       case SoundBlock(pat) =>

@@ -20,5 +20,8 @@ object Transformations {
     case class Early(pattern: Pattern[Config]) extends TransformationBlock
     case class Late(pattern: Pattern[Config]) extends TransformationBlock
 
+    case class Juxtaposition(transformations: List[TransformationBlock]) extends TransformationBlock
+    case class Offset(offset: Pattern[Config], transformations: List[TransformationBlock]) extends TransformationBlock
+
     case class Unknown(name: String, pattern: Pattern[Config]) extends TransformationBlock
 }
