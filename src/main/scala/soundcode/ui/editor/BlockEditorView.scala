@@ -18,6 +18,7 @@ import soundcode.ui.visualizer.AnimatedView
 import soundcode.ui.editor.SyntaxHighlighter
 import soundcode.ui.editor.AutoPairingSupport
 import soundcode.ui.visualizer.PianoRollView
+import soundcode.ui.visualizer.OscilloscopeView
 
 final class BlockEditorView(
     initialCode: String,
@@ -94,7 +95,8 @@ final class BlockEditorView(
     index match
       case 0 =>
         Some(new PianoRollView)
-
+      case 1 =>
+        Some(new OscilloscopeView)
       case _ =>
         None
 
@@ -104,32 +106,47 @@ final class BlockEditorView(
   def stop(): Unit =
     animatedViews.foreach(_.stop())
 
-  def buildBlocks(code: String): Unit =
-    blocksBox.children.clear()
-    lineEditors.clear()
-    animatedViews.clear()
-
-    code
+  private def buildBlocks(code: String): Unit =
+    val lines = code
       .replace("\r\n", "\n")
       .replace("\r", "\n")
       .split("\n", -1)
       .toSeq
-      .zipWithIndex
-      .foreach { case (line, index) =>
-        val editor = createLineEditor(line)
-        var visualizer = temporaryVisualizerForLine(index)
+    rebuildFromLines(lines)
 
-        lineEditors += editor
+  private def rebuildFromLines(lines: Seq[String]): Unit =
+    clearBlocks()
 
-        visualizer.foreach(animatedViews += _)
-        blocksBox.children.add(
-          new VBox:
-            spacing = 0
-            children = Seq(
-              codeLineRow(editor, index + 1)
-            ) ++ visualizer.map(_.root).toSeq
-        )
-      }
+    lines.zipWithIndex.foreach { case (line, index) =>
+      addBlock(line, index)
+    }
+
+  private def clearBlocks(): Unit =
+    blocksBox.children.clear()
+    lineEditors.clear()
+    animatedViews.clear()
+
+  private def addBlock(line: String, index: Int): Unit =
+    val editor = createLineEditor(line)
+    val visualizer = temporaryVisualizerForLine(index)
+
+    lineEditors += editor
+    visualizer.foreach(animatedViews += _)
+
+    blocksBox.children.add(
+      blockNode(editor, index + 1, visualizer)
+    )
+
+  private def blockNode(
+      editor: InlineCssTextArea,
+      lineNumber: Int,
+      visualizer: Option[AnimatedView]
+  ): VBox =
+    new VBox:
+      spacing = 0
+      children = Seq(
+        codeLineRow(editor, lineNumber)
+      ) ++ visualizer.map(_.root).toSeq
 
   private def codeLineRow(editor: InlineCssTextArea, lineNumber: Int): HBox =
     val editorNode = jfxNode2sfx(editor)
