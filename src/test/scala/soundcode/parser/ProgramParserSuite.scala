@@ -66,7 +66,7 @@ class SoundCodeParserSuite extends AnyFunSuite with BeforeAndAfterAll {
 
             val expected = Pattern(List(
             Sequence(List(
-                AtomElement(Note("c4"))
+                AtomElement(Note("c", None, 4))
             ))
             ))
             assert(block.pattern == expected)
@@ -450,5 +450,33 @@ class SoundCodeParserSuite extends AnyFunSuite with BeforeAndAfterAll {
         val stream3 = program.blocks(2).asInstanceOf[StreamBlock]
         
         assert(stream3.extensions.nonEmpty)
+    }
+
+    test("full usage of note naming with accidentals and octaves") {
+        val input = "note(\"C4 d#5 Eb3 F6 g2 a#0 Bb9\")"
+        val result = parse(input)
+        
+        assert(result.isInstanceOf[fastparse.Parsed.Success[?]])
+        val program = result.get.value
+
+        val expectedNotes = List(
+            Note("c", None, 4),
+            Note("d", Some("#"), 5),
+            Note("e", Some("b"), 3),
+            Note("f", None, 6),
+            Note("g", None, 2),
+            Note("a", Some("#"), 0),
+            Note("b", Some("b"), 9)
+        )
+
+        program.blocks.zip(expectedNotes).foreach { case (block, expectedNote) =>
+            val stream = block.asInstanceOf[StreamBlock]
+            val noteBlock = stream.base.asInstanceOf[NoteBlock]
+            val pattern = noteBlock.pattern
+            val sequence = pattern.elems.head
+            val element = sequence.elems.head.asInstanceOf[AtomElement[Note]]
+            
+            assert(element.atom == expectedNote)
+        }
     }
 }

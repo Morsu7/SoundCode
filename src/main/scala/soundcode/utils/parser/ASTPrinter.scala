@@ -97,7 +97,11 @@ object ASTPrinter {
     val nextIndent = indent + (if (isLast) "    " else "|   ")
     el match {
       case SpeedModifiedElement(element, isMulFactor, factor) => s"$indent${marker}SpeedModifiedElement: ${if (isMulFactor) "Multiply" else "Divide"} by ${factor.value}\n${formatElement(element, nextIndent, isLast = true)}"
-      case AtomElement(atom) => s"$indent${marker}Atom: ${atom match { case Note(v) => s"Note($v)"; case Sample(v) => s"Sample($v)"; case Config(v) => s"Config($v)" }}"
+      case AtomElement(atom) => s"$indent${marker}Atom: ${atom match { 
+        case n:Note => s"Note($n)"
+        case Sample(value) => s"Sample($value)"
+        case Config(value) => s"Config($value)" 
+      }}"
       case SubPatternElement(p) => s"$indent${marker}SubPatternElement [Square brackets contains]\n${formatPattern(p, nextIndent, isLast = true)}"
       case AlternationElement(p) => s"$indent${marker}AlternationElement [Angular brackets contains]\n${formatPattern(p, nextIndent, isLast = true)}"
     }

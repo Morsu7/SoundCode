@@ -33,7 +33,12 @@ case class SpeedModifiedElement[A <: Atom](
 ) extends Element[A]
 
 sealed trait Atom
-case class Note(value: String) extends Atom
+case class Note(name: String, accidental: Option[String], octave: Int) extends Atom {
+  override def toString: String = {
+    val accStr = accidental.getOrElse("")
+    s"$name$accStr$octave"
+  }
+}
 case class Sample(value: String) extends Atom
 case class Config(value: Double) extends Atom // Numerical values for transformations
 

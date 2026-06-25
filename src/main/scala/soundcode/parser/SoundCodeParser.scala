@@ -145,10 +145,16 @@ class SoundCodeParser {
     ---------- ATOMS PARSER ----------
   */
   // A note is a pitch (a-g) followed by an optional octave (0-9)
-  private def noteAtom(using P[?]): P[Note] =
-    P( CharIn("a-gA-G").! ~ CharIn("0-9").?.! ).map { 
-      case (pitch, octave) => Note(pitch + octave) 
-    }
+  private def noteAtom(using P[?]): P[Note] = P(
+    // note name (case-insensitive, lowercase in AST)
+    CharIn("a-gA-G").! ~ 
+    StringIn("#", "s", "b").!.? ~ 
+    CharsWhileIn("0-9").!.?
+  ).map { case (pitch, accidentalOpt, octaveOpt) =>
+    val cleanAccidental = accidentalOpt.map(a => if (a == "s") "#" else a)
+    val octave = octaveOpt.map(_.toInt).getOrElse(4)
+    Note(pitch.toLowerCase, cleanAccidental, octave)
+  }
   // A sample is a string of lowercase letters and numbers
   private def sampleAtom(using P[?]): P[Sample] =
     P( CharsWhileIn("a-z0-9").! ).map(Sample.apply)
