@@ -2,28 +2,23 @@ package soundcode.domain
 
 case class Stream(base: Pattern, extensions: List[Pattern])
 
-type Pattern= List[Seq[Element]]
+type Pattern = List[Seq[Element]]
 
-enum Element:
-  case Sound
-  case AggregationPattern
-  case Effect
+sealed trait Element
 
-enum Sound:
-  case NoteInText
-  case SampleInText
+enum Sound extends Element:
+  case NoteInText(nota: Note, position: TextPosition)
+  case SampleInText(sample: Sample, position: TextPosition)
 
-case class NoteInText(nota:Note,position: TextPosition)
-case class SampleInText(sample:Sample,position: TextPosition)
-case class TextPosition(startIndex: Int, endIndex:Int)
-
-enum AggregationPattern:
+enum AggregationPattern extends Element:
   case SubPattern(pattern: Pattern)
   case AlternationPattern(pattern: Pattern)
 
-enum Effect:
+enum Effect extends Element:
   case Gain(value: Int)
   case Room(value: Int)
- 
+
+case class TextPosition(startIndex: Int, endIndex: Int)
+
 type Note = String
 type Sample = String
