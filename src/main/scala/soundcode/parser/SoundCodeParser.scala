@@ -44,9 +44,18 @@ class SoundCodeParser {
   // A sequence is a series of elements played in sequence, each element lasts for a fraction of the cycle
   private def sequence[T <: Atom](atom: => P[T])(using P[?]): P[Sequence[T]] =
     P( element(atom).rep(1, sep = P( ws )) ).map(seq => Sequence(seq.toList))
-    
+  
+  private def element[T <: Atom](atom: => P[T])(using P[?]): P[Element[T]] = P(
+    baseElement(atom) ~ (StringIn("*", "/").! ~ configAtom).?
+  ).map {
+    case (base, Some((opStr, factor))) => 
+      SpeedModifiedElement(base, opStr == "*", factor)
+    case (base, None) => 
+      base // Restituisce l'elemento base puro
+  }
+
   // An element is either an atom (note/sample) or a sub-pattern
-  private def element[T <: Atom](atom: => P[T])(using P[?]): P[Element[T]] =
+  private def baseElement[T <: Atom](atom: => P[T])(using P[?]): P[Element[T]] =
     P( 
       atom.map(a => AtomElement[T](a): Element[T]) | 
       subPattern(atom).map(s => s: Element[T]) | 

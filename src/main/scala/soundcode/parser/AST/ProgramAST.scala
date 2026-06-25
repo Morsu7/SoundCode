@@ -26,6 +26,12 @@ case class AtomElement[A <: Atom](atom: A) extends Element[A]
 case class SubPatternElement[A <: Atom](pattern: Pattern[A]) extends Element[A]
 case class AlternationElement[A <: Atom](pattern: Pattern[A]) extends Element[A] // A pattern contained in <> brackets, played in alternation (one element per cycle, round-robin)
 
+case class SpeedModifiedElement[A <: Atom](
+  element: Element[A], 
+  isMulFactor: Boolean,
+  factor: Config
+) extends Element[A]
+
 sealed trait Atom
 case class Note(value: String) extends Atom
 case class Sample(value: String) extends Atom

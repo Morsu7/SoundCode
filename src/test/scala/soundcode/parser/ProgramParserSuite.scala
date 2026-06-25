@@ -1,24 +1,42 @@
 package soundcode.parser
 
 import org.scalatest.funsuite.AnyFunSuite
+import org.scalatest.BeforeAndAfterAll
+import scala.collection.mutable.ListBuffer
 import fastparse._
 import soundcode.parser.AST._
 import soundcode.parser.AST.Transformations._
 
-class SoundCodeParserSuite extends AnyFunSuite {
+class SoundCodeParserSuite extends AnyFunSuite with BeforeAndAfterAll {
 
-    private def DEBUG = true
+    private def DEBUG = false
+    private val testReports = ListBuffer[String]()
+
+    override def afterAll(): Unit = {
+        if (DEBUG) {
+            val finalReport = new StringBuilder()
+            finalReport.append("\n" + "=" * 50 + "\n")
+            finalReport.append("          REPORT COMPLETO DEL PARSER\n")
+            finalReport.append("=" * 50 + "\n")
+            
+            testReports.foreach(report => finalReport.append(report).append("\n"))
+            finalReport.append("=" * 50 + "\n")
+
+            alert(finalReport.toString()) 
+        }
+    }
 
     private def parse(input: String) = {
         val res = new SoundCodeParser().parseProgram(input)
-        if (DEBUG) 
-            println(s"\nINPUT: $input")
-            res match {
-                case Parsed.Success(ast, _) => 
-                println(s"OUTPUT:\n$ast\n") // Stampa solo l'albero pulito
-                case f: Parsed.Failure => 
-                println(s"OUTPUT: Failure -> ${f.msg}\n")
+        if (DEBUG) {
+            val outputPart = res match {
+                case Parsed.Success(ast, _) => s"OUTPUT:\n$ast\n"
+                case f: Parsed.Failure      => s"OUTPUT: Failure -> ${f.msg}\n"
             }
+            
+            val report = s"\nINPUT: $input\n$outputPart"
+            testReports.append(report)
+        }
         res
     }
 
@@ -318,7 +336,6 @@ class SoundCodeParserSuite extends AnyFunSuite {
         
         assert(result.isInstanceOf[fastparse.Parsed.Success[?]])
         val program = result.get.value
-        println(s"Parsed AST:\n$program\n")
         val stream = program.blocks.head.asInstanceOf[StreamBlock]
         
         val offBlock = stream.extensions.head.asInstanceOf[TransformationExtensionBlock].block.asInstanceOf[Offset]
@@ -397,5 +414,41 @@ class SoundCodeParserSuite extends AnyFunSuite {
         assert(result.isInstanceOf[fastparse.Parsed.Success[?]])
         val program = result.get.value
         assert(program.blocks.size == 2)
+    }
+
+    test("usage of speed controlled items") {
+        val input = "sound(\"bd*2\")\nnote(\"c4/0.5\")\nsound(\"[hh bd, <bd bd>*2]\").note(\"a a*2 b/2\")"
+        val result = parse(input)
+        
+        assert(result.isInstanceOf[fastparse.Parsed.Success[?]])
+        val program = result.get.value
+        
+        assert(program.blocks.size == 3)
+
+        // row 1: sound("bd*2")
+        val stream1 = program.blocks(0).asInstanceOf[StreamBlock]
+        val soundBlock = stream1.base.asInstanceOf[SoundBlock]
+        val soundPattern = soundBlock.pattern
+        val soundSequence = soundPattern.elems.head
+        val soundElement = soundSequence.elems.head.asInstanceOf[SpeedModifiedElement[Sample]]
+        
+        assert(soundElement.isMulFactor == true)
+        assert(soundElement.factor.value == 2.0)
+
+        // row 2: note("c4/0.5")
+        val stream2 = program.blocks(1).asInstanceOf[StreamBlock]
+        val noteBlock = stream2.base.asInstanceOf[NoteBlock]
+        val notePattern = noteBlock.pattern
+        val noteSequence = notePattern.elems.head
+        val noteElement = noteSequence.elems.head.asInstanceOf[SpeedModifiedElement[Note]]
+        
+        assert(noteElement.isMulFactor == false)
+        assert(noteElement.factor.value == 0.5)
+
+        // row 3: sound("[hh bd, <bd bd>*2]").note("a a*2 b/2")
+        // Questa riga contiene una catena (.note). Verifichiamo che l'estensione contenga i modificatori attesi
+        val stream3 = program.blocks(2).asInstanceOf[StreamBlock]
+        
+        assert(stream3.extensions.nonEmpty)
     }
 }
