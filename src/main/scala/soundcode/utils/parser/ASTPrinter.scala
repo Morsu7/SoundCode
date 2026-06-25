@@ -37,16 +37,24 @@ object ASTPrinter {
         s"$indent${marker}TransformationExtensionBlock (.)\n${formatBlock(transBlock, nextIndent, isLast = true)}"
 
       case t: TransformationBlock =>
-        val (name, pat) = t match {
-          case Gain(p)            => ("gain", p)
-          case Pan(p)             => ("pan", p)
-          case Room(p)            => ("room", p)
-          case Delay(p)           => ("delay", p)
-          case LowPassFilter(p)   => ("lowPassFilter", p)
-          case HighPassFilter(p)  => ("highPassFilter", p)
-          case _ => ("unknown", Pattern(List()))
+        t match {
+          case Reverse() =>
+            s"$indent${marker}TransformationBlock: .reverse"
+
+          case Gain(p)            => formatTransWithParam("gain", p, nextIndent, indent, marker)
+          case Pan(p)             => formatTransWithParam("pan", p, nextIndent, indent, marker)
+          case Room(p)            => formatTransWithParam("room", p, nextIndent, indent, marker)
+          case Delay(p)           => formatTransWithParam("delay", p, nextIndent, indent, marker)
+          case LowPassFilter(p)   => formatTransWithParam("lpf", p, nextIndent, indent, marker)
+          case HighPassFilter(p)  => formatTransWithParam("hpf", p, nextIndent, indent, marker)
+          case FastForward(p)     => formatTransWithParam("fast", p, nextIndent, indent, marker)
+          case SlowMotion(p)      => formatTransWithParam("slow", p, nextIndent, indent, marker)
+          case Early(p)           => formatTransWithParam("early", p, nextIndent, indent, marker)
+          case Late(p)            => formatTransWithParam("late", p, nextIndent, indent, marker)
+          case Repetition(p)      => formatTransWithParam("ply", p, nextIndent, indent, marker)
+
+          case _ => formatTransWithParam("unknown", Pattern(List()), nextIndent, indent, marker) // For unknown transformations, we don't have a pattern to display
         }
-        s"$indent${marker}TransformationBlock: .$name(...)\n${formatPattern(pat, nextIndent, isLast = true)}"
 
       case SoundBlock(pat) =>
         s"$indent${marker}SoundBlock\n${formatPattern(pat, nextIndent, isLast = true)}"
@@ -54,6 +62,10 @@ object ASTPrinter {
       case NoteBlock(pat) =>
         s"$indent${marker}NoteBlock\n${formatPattern(pat, nextIndent, isLast = true)}"
     }
+  }
+
+  private def formatTransWithParam(name: String, pat: Pattern[Config], nextIndent: String, indent: String, marker: String): String = {
+    s"$indent${marker}TransformationBlock: .$name(...)\n${formatPattern(pat, nextIndent, isLast = true)}"
   }
 
   private def formatPattern[A <: Atom](pat: Pattern[A], indent: String, isLast: Boolean): String = {

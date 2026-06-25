@@ -9,14 +9,14 @@ class SoundCodeParserSuite extends AnyFunSuite {
 
     private def parse(input: String) = {
         val res = new SoundCodeParser().parseProgram(input)
-        println(s"\nINPUT: $input")
+        //println(s"\nINPUT: $input")
         
-        res match {
+        /*res match {
             case Parsed.Success(ast, _) => 
             println(s"OUTPUT:\n$ast\n") // Stampa solo l'albero pulito
             case f: Parsed.Failure => 
             println(s"OUTPUT: Failure -> ${f.msg}\n")
-        }
+        }*/
         res
     }
 
@@ -285,5 +285,33 @@ class SoundCodeParserSuite extends AnyFunSuite {
         
         // the sequence should contain two Config elements
         assert(innerSequence.elems.size == 2) 
+    }
+
+    test("all transformations chain verification") {
+        // giant chain with all transformations
+        val input = "sound(bd).rev().gain(0.8).pan(0.5).room(0.2).delay(0.1).lpf(500).hpf(1000).fast(2).slow(0.5).early(0.1).late(0.2).ply(4)"
+        
+        val result = parse(input)
+        assert(result.isInstanceOf[fastparse.Parsed.Success[?]])
+        
+        val program = result.get.value
+        val stream = program.blocks.head.asInstanceOf[StreamBlock]
+        
+        assert(stream.base.isInstanceOf[SoundBlock])
+        
+        val extensions = stream.extensions.map(_.asInstanceOf[TransformationExtensionBlock].block)
+        assert(extensions.size == 12)
+        assert(extensions(0).isInstanceOf[Reverse])
+        assert(extensions(1).isInstanceOf[Gain])
+        assert(extensions(2).isInstanceOf[Pan])
+        assert(extensions(3).isInstanceOf[Room])
+        assert(extensions(4).isInstanceOf[Delay])
+        assert(extensions(5).isInstanceOf[LowPassFilter])
+        assert(extensions(6).isInstanceOf[HighPassFilter])
+        assert(extensions(7).isInstanceOf[FastForward])
+        assert(extensions(8).isInstanceOf[SlowMotion])
+        assert(extensions(9).isInstanceOf[Early])
+        assert(extensions(10).isInstanceOf[Late])
+        assert(extensions(11).isInstanceOf[Repetition])
     }
 }

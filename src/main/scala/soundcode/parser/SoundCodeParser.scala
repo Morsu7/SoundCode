@@ -62,7 +62,21 @@ class SoundCodeParser {
     ---------- TRANS PARSER ----------
   */
   private def transformationBlock(using P[?]): P[TransformationBlock] =
-    P( gain | pan | room | delay | lowPassFilter | highPassFilter | unknownExtension)
+  P(
+    gain 
+      | pan 
+      | room 
+      | delay 
+      | lowPassFilter 
+      | highPassFilter 
+      | fastForward
+      | slowMotion
+      | early
+      | late
+      | reverse
+      | repetition
+      | unknownExtension
+  )
 
   private def unknownExtension(using P[?]): P[Unknown] = P(
     identifier ~ "(" ~ pattern(configAtom) ~ ")"
@@ -85,6 +99,24 @@ class SoundCodeParser {
 
   private def highPassFilter(using P[?]): P[HighPassFilter] =
     P( "hpf" ~ "(" ~ pattern(configAtom) ~ ")" ).map(HighPassFilter.apply)
+
+  private def fastForward(using P[?]): P[FastForward] =
+    P( "fast" ~ "(" ~ pattern(configAtom) ~ ")" ).map(FastForward.apply)
+
+  private def slowMotion(using P[?]): P[SlowMotion] =
+    P( "slow" ~ "(" ~ pattern(configAtom) ~ ")" ).map(SlowMotion.apply)
+
+  private def early(using P[?]): P[Early] =
+    P( "early" ~ "(" ~ pattern(configAtom) ~ ")" ).map(Early.apply)
+
+  private def late(using P[?]): P[Late] =
+    P( "late" ~ "(" ~ pattern(configAtom) ~ ")" ).map(Late.apply)
+
+  private def reverse(using P[?]): P[Reverse] =
+    P( "rev()" ).map(_ => Reverse())
+
+  private def repetition(using P[?]): P[Repetition] =
+    P( "ply" ~ "(" ~ pattern(configAtom) ~ ")" ).map(Repetition.apply)
 
   /*
     ---------- ATOMS PARSER ----------

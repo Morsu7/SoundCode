@@ -11,5 +11,14 @@ object Transformations {
     case class LowPassFilter(pattern: Pattern[Config]) extends TransformationBlock
     case class HighPassFilter(pattern: Pattern[Config]) extends TransformationBlock
 
+    case class Reverse() extends TransformationBlock
+    case class Repetition(pattern: Pattern[Config]) extends TransformationBlock
+
+    case class FastForward(pattern: Pattern[Config]) extends TransformationBlock
+    case class SlowMotion(pattern: Pattern[Config]) extends TransformationBlock
+
+    case class Early(pattern: Pattern[Config]) extends TransformationBlock
+    case class Late(pattern: Pattern[Config]) extends TransformationBlock
+
     case class Unknown(name: String, pattern: Pattern[Config]) extends TransformationBlock
 }
