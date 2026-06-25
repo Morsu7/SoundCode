@@ -1,6 +1,7 @@
 package soundcode.ui
 
 import org.fxmisc.richtext.InlineCssTextArea
+import soundcode.ui.editor.AutoPairingSupport
 
 class AutoPairingSupportSpec extends UITestSupport:
   test("auto pairing inserts parentheses, brackets, braces and quotes"):

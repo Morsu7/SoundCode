@@ -1,4 +1,4 @@
-package soundcode.ui
+package soundcode.ui.editor
 
 import javafx.scene.input.{KeyCode, KeyEvent}
 import scalafx.scene.layout.VBox
@@ -11,6 +11,13 @@ import scalafx.scene.layout.Priority
 import scalafx.scene.control.Label
 import scalafx.geometry.Pos
 import scala.collection.mutable.Buffer
+import scalafx.scene.Node
+import scalafx.animation.PauseTransition
+import scalafx.util.Duration
+import soundcode.ui.visualizer.AnimatedView
+import soundcode.ui.editor.SyntaxHighlighter
+import soundcode.ui.editor.AutoPairingSupport
+import soundcode.ui.visualizer.PianoRollView
 
 final class BlockEditorView(
     initialCode: String,
@@ -19,6 +26,7 @@ final class BlockEditorView(
   private val LineHeight = 34
 
   private val lineEditors = Buffer.empty[InlineCssTextArea]
+  private val animatedViews = Buffer.empty[AnimatedView]
 
   private val blocksBox = new VBox:
     spacing = 2
@@ -37,7 +45,7 @@ final class BlockEditorView(
 
   def createLineEditor(text: String): InlineCssTextArea =
     new InlineCssTextArea:
-      replaceText(text)
+      replaceText(text.replace("\r", "").replace("\n", ""))
       setPrefHeight(LineHeight)
       setMinHeight(LineHeight)
       setMaxHeight(LineHeight)
@@ -81,18 +89,47 @@ final class BlockEditorView(
   private def applySyntaxHighlighting(editor: InlineCssTextArea): Unit =
     val text = editor.getText
 
+  // temporary function to show the visualizer
+  private def temporaryVisualizerForLine(index: Int): Option[AnimatedView] =
+    index match
+      case 0 =>
+        Some(new PianoRollView)
+
+      case _ =>
+        None
+
+  def play(): Unit =
+    animatedViews.foreach(_.play())
+
+  def stop(): Unit =
+    animatedViews.foreach(_.stop())
+
   def buildBlocks(code: String): Unit =
     blocksBox.children.clear()
     lineEditors.clear()
+    animatedViews.clear()
 
-    code.split("\n", -1).toSeq.zipWithIndex.foreach { case (line, index) =>
-      val editor = createLineEditor(line)
+    code
+      .replace("\r\n", "\n")
+      .replace("\r", "\n")
+      .split("\n", -1)
+      .toSeq
+      .zipWithIndex
+      .foreach { case (line, index) =>
+        val editor = createLineEditor(line)
+        var visualizer = temporaryVisualizerForLine(index)
 
-      lineEditors += editor
-      blocksBox.children.add(codeLineRow(editor, index + 1))
+        lineEditors += editor
 
-    // TODO: Visualize notes with pianoroll or scope
-    }
+        visualizer.foreach(animatedViews += _)
+        blocksBox.children.add(
+          new VBox:
+            spacing = 0
+            children = Seq(
+              codeLineRow(editor, index + 1)
+            ) ++ visualizer.map(_.root).toSeq
+        )
+      }
 
   private def codeLineRow(editor: InlineCssTextArea, lineNumber: Int): HBox =
     val editorNode = jfxNode2sfx(editor)

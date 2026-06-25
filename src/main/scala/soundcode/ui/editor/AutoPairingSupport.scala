@@ -1,4 +1,4 @@
-package soundcode.ui
+package soundcode.ui.editor
 
 import javafx.scene.input.KeyEvent
 

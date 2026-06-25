@@ -5,6 +5,7 @@ import org.fxmisc.richtext.InlineCssTextArea
 import javafx.scene.control.Label
 import javafx.scene.layout.{HBox, VBox}
 import javafx.scene.input.{KeyEvent, KeyCode}
+import soundcode.ui.editor.BlockEditorView
 
 class BlockEditorViewSpec extends UITestSupport:
   private val initialCode =

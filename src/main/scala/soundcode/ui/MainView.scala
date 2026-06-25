@@ -7,14 +7,14 @@ import scalafx.scene.control.Button
 import scalafx.scene.control.Label
 
 import javafx.event.{ActionEvent, EventHandler}
+import soundcode.ui.editor.BlockEditorView
 
 class MainView:
   private val editorView =
     BlockEditorView(
-      initialCode = """
-        |note("c4 a4").sound("piano")
-        |sound("hb hd hh")
-      """.stripMargin.trim,
+      initialCode = """|note("c4 a4").sound("piano")
+         |sound("hb hd hh")
+         |""".stripMargin.trim,
       onCodeChanged = code => {} // TODO: handle code changes
     )
 
@@ -27,10 +27,10 @@ class MainView:
     new ToolBar:
       content = Seq(
         new Button("Play"):
-          onAction = _ => println("Play clicked")
+          onAction = _ => editorView.play()
         ,
         new Button("Stop"):
-          onAction = _ => println("Stop clicked")
+          onAction = _ => editorView.stop()
         ,
         new Button("Update"):
           onAction = _ => println("Update clicked")

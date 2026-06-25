@@ -1,4 +1,4 @@
-package soundcode.ui
+package soundcode.ui.editor
 
 import org.fxmisc.richtext.InlineCssTextArea
 import java.util.Collections
