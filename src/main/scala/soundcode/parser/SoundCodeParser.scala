@@ -2,6 +2,7 @@ package soundcode.parser
 
 import fastparse._, NoWhitespace._
 import soundcode.parser.AST._
+import soundcode.parser.AST.Transformations._
 
 class SoundCodeParser {
 
@@ -14,20 +15,25 @@ class SoundCodeParser {
   }
 
   private def prog(using P[?]): P[ProgramAST] = 
-    P(block.rep(1, sep = P("\n"))).map(ProgramAST.apply) // One or more blocks
+    P(streamBlock.rep(1, sep = P("\n"))).map(streams => ProgramAST(streams.toList)) // One or more audio Streams
 
-  private def block(using P[?]): P[Block] =
-    P( noteBlock | soundBlock )
+  // A "stream" is a generative block optionally chained with generative or transformation blocks
+  private def streamBlock(using P[?]): P[StreamBlock] =
+    P( generativeBlock ~ ( "." ~ extensionBlock ).rep ).map {
+      case (baseBlock, extensionSeq) => StreamBlock(baseBlock, extensionSeq.toList)
+    }
+
+  private def generativeBlock(using P[?]): P[GenerativeBlock] =
+    P( soundBlock | noteBlock )
+
+  private def extensionBlock(using P[?]): P[ExtensionBlock] =
+    P( generativeBlock.map(GenerativeExtensionBlock.apply) | transformationBlock.map(TransformationExtensionBlock.apply) )
 
   private def noteBlock(using P[?]): P[NoteBlock] =
-    P( "note" ~ "(" ~ pattern(noteAtom) ~ ")" ~ ("." ~ soundBlock).? ).map(
-      (value, attachment) => NoteBlock(value, attachment)
-    )
+    P( "note" ~ "(" ~ pattern(noteAtom) ~ ")" ).map( NoteBlock.apply )
 
   private def soundBlock(using P[?]): P[SoundBlock] =
-    P( "sound" ~ "(" ~ pattern(sampleAtom) ~ ")" ).map( 
-      (value) => SoundBlock(value)
-    )
+    P( "sound" ~ "(" ~ pattern(sampleAtom) ~ ")" ).map( SoundBlock.apply )
 
   // A pattern is a series of sequences played in parallel, each sequence lasts exactly for a cycle
   private def pattern[T <: Atom](atom: => P[T])(using P[?]): P[Pattern[T]] =
@@ -53,6 +59,34 @@ class SoundCodeParser {
     P( "<" ~ pattern(atom) ~ ">" ).map(AlternationElement.apply)
 
   /*
+    ---------- TRANS PARSER ----------
+  */
+  private def transformationBlock(using P[?]): P[TransformationBlock] =
+    P( gain | pan | room | delay | lowPassFilter | highPassFilter | unknownExtension)
+
+  private def unknownExtension(using P[?]): P[Unknown] = P(
+    identifier ~ "(" ~ pattern(configAtom) ~ ")"
+  ).map { case (name, pat) => Unknown(name, pat) }
+  
+  private def gain(using P[?]): P[Gain] =
+    P( "gain" ~ "(" ~ pattern(configAtom) ~ ")" ).map(Gain.apply)
+
+  private def pan(using P[?]): P[Pan] =
+    P( "pan" ~ "(" ~ pattern(configAtom) ~ ")" ).map(Pan.apply)
+  
+  private def room(using P[?]): P[Room] =
+    P( "room" ~ "(" ~ pattern(configAtom) ~ ")" ).map(Room.apply)
+
+  private def delay(using P[?]): P[Delay] =
+    P( "delay" ~ "(" ~ pattern(configAtom) ~ ")" ).map(Delay.apply)
+
+  private def lowPassFilter(using P[?]): P[LowPassFilter] =
+    P( "lpf" ~ "(" ~ pattern(configAtom) ~ ")" ).map(LowPassFilter.apply)
+
+  private def highPassFilter(using P[?]): P[HighPassFilter] =
+    P( "hpf" ~ "(" ~ pattern(configAtom) ~ ")" ).map(HighPassFilter.apply)
+
+  /*
     ---------- ATOMS PARSER ----------
   */
   // A note is a pitch (a-g) followed by an optional octave (0-9)
@@ -63,4 +97,14 @@ class SoundCodeParser {
   // A sample is a string of lowercase letters and numbers
   private def sampleAtom(using P[?]): P[Sample] =
     P( CharsWhileIn("a-z0-9").! ).map(Sample.apply)
+
+  private def configAtom(using P[?]): P[Config] =
+    P( (CharIn("+\\-").? ~ CharsWhileIn("0-9") ~ ("." ~ CharsWhileIn("0-9")).?).! ).map(c => Config(c.toDouble))
+
+  
+  /*
+    ---------- UTILS PARSER ----------
+  */
+  // parser for generic names
+  private def identifier(using P[?]): P[String] = P( CharsWhileIn("a-zA-Z").! )
 }
