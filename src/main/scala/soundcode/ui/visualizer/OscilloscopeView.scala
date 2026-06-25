@@ -5,7 +5,7 @@ import scalafx.scene.control.Label
 import scalafx.scene.Node
 import scalafx.geometry.Insets
 
-class OscilloscopeView extends AnimatedView:
+final class OscilloscopeView extends AnimatedView:
   private val view = new VBox:
     spacing = 4
     padding = Insets(8)
