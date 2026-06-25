@@ -252,4 +252,38 @@ class SoundCodeParserSuite extends AnyFunSuite {
         assert(unknownBlock.name == "customTransform")
         assert(unknownBlock.pattern.elems.head.elems.head.asInstanceOf[AtomElement[Config]].atom.value == 1.5)
     }
+
+    test("using complex patterns in transformations") {
+        val input = "sound(bd).gain([0.5 0.8])"
+        val result = parse(input)
+        
+        assert(result.isInstanceOf[fastparse.Parsed.Success[?]])
+        val program = result.get.value
+        val stream = program.blocks.head.asInstanceOf[StreamBlock]
+        
+        assert(stream.base.isInstanceOf[SoundBlock])
+        assert(stream.extensions.size == 1)
+        
+        val ext = stream.extensions.head.asInstanceOf[TransformationExtensionBlock]
+        assert(ext.block.isInstanceOf[Gain])
+        
+        val gainBlock = ext.block.asInstanceOf[Gain]
+        val pattern = gainBlock.pattern
+        
+        assert(pattern.elems.size == 1) // A single sequence in the pattern
+        val mainSequence = pattern.elems.head
+        
+        // the sequence should contain a SubPatternElement with two Config elements inside
+        assert(mainSequence.elems.size == 1) 
+        
+
+        val subPatternEl = mainSequence.elems.head.asInstanceOf[SubPatternElement[Config]]
+        val innerPattern = subPatternEl.pattern
+        
+        assert(innerPattern.elems.size == 1) // a single sequence inside the sub-pattern
+        val innerSequence = innerPattern.elems.head
+        
+        // the sequence should contain two Config elements
+        assert(innerSequence.elems.size == 2) 
+    }
 }
