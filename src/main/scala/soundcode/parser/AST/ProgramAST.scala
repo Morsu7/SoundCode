@@ -16,6 +16,7 @@ case class Sequence[A <: Atom](elems: List[Element[A]])
 sealed trait Element[A <: Atom]
 case class AtomElement[A <: Atom](atom: A) extends Element[A]
 case class SubPatternElement[A <: Atom](pattern: Pattern[A]) extends Element[A]
+case class AlternationElement[A <: Atom](pattern: Pattern[A]) extends Element[A] // A pattern contained in <> brackets, played in alternation (one element per cycle, round-robin)
 
 sealed trait Atom
 case class Note(value: String) extends Atom
@@ -63,6 +64,7 @@ case class ProgramAST(blocks: Seq[Block]) {
         el match {
             case AtomElement(atom) => s"$indent${marker}Atom: ${atom match { case Note(v) => s"Note($v)"; case Sample(v) => s"Sample($v)" }}"
             case SubPatternElement(p) => s"$indent${marker}SubPatternElement [Square brackets contains]\n${formatPattern(p, nextIndent, isLast = true)}"
+            case AlternationElement(p) => s"$indent${marker}AlternationElement [Angular brackets contains]\n${formatPattern(p, nextIndent, isLast = true)}"
         }
     }
 }

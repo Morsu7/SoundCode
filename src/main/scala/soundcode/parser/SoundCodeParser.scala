@@ -31,21 +31,30 @@ class SoundCodeParser {
 
   // A pattern is a series of sequences played in parallel, each sequence lasts exactly for a cycle
   private def pattern[T <: Atom](atom: => P[T])(using P[?]): P[Pattern[T]] =
-    P( sequence(atom).rep(1, sep = P(",")) ).map(seq => Pattern(seq.toList))
+    P( sequence(atom).rep(1, sep = P( CharsWhileIn(" \t").? ~ "," ~ CharsWhileIn(" \t").? )) ).map(seq => Pattern(seq.toList))
 
   // A sequence is a series of elements played in sequence, each element lasts for a fraction of the cycle
   private def sequence[T <: Atom](atom: => P[T])(using P[?]): P[Sequence[T]] =
-    P( element(atom).rep(1, sep = P(" ")) ).map(seq => Sequence(seq.toList))
-
+    P( element(atom).rep(1, sep = P( CharsWhileIn(" \t") )) ).map(seq => Sequence(seq.toList))
+    
   // An element is either an atom (note/sample) or a sub-pattern
   private def element[T <: Atom](atom: => P[T])(using P[?]): P[Element[T]] =
-    P( atom.map(AtomElement.apply) | subPattern(atom) )
+    P( 
+      atom.map(a => AtomElement[T](a): Element[T]) | 
+      subPattern(atom).map(s => s: Element[T]) | 
+      alternationPattern(atom).map(a => a: Element[T])
+    )
 
   // A sub-pattern is a pattern enclosed in square brackets ([...])
   private def subPattern[T <: Atom](atom: => P[T])(using P[?]): P[SubPatternElement[T]] =
     P( "[" ~ pattern(atom) ~ "]" ).map(SubPatternElement.apply)
 
+  private def alternationPattern[T <: Atom](atom: => P[T])(using P[?]): P[AlternationElement[T]] =
+    P( "<" ~ pattern(atom) ~ ">" ).map(AlternationElement.apply)
 
+  /*
+    ---------- ATOMS PARSER ----------
+  */
   // A note is a pitch (a-g) followed by an optional octave (0-9)
   private def noteAtom(using P[?]): P[Note] =
     P( CharIn("a-gA-G").! ~ CharIn("0-9").?.! ).map { 

@@ -78,20 +78,43 @@ class SoundCodeParserSuite extends AnyFunSuite {
         }
     }
 
+    test("alternation in sound block") {
+        parse("sound(bd <hh oh>)") match {
+        case Parsed.Success(ast, _) =>
+            val block = ast.blocks.head.asInstanceOf[SoundBlock]
+
+            // Struttura attesa: un ciclo con una sequenza di 2 elementi:
+            // 1. L'atomo "bd"
+            // 2. L'AlternationElement che contiene a sua volta "hh" e "oh"
+            val expected = Pattern(List(
+            Sequence(List(
+                AtomElement(Sample("bd")),
+                AlternationElement(Pattern(List(
+                Sequence(List(
+                    AtomElement(Sample("hh")),
+                    AtomElement(Sample("oh"))
+                ))
+                )))
+            ))
+            ))
+            assert(block.pattern == expected)
+
+        case f: Parsed.Failure => 
+            fail(s"Parsing failed: ${f.msg}")
+        }
+    }
+
     test("parallel in sound block") {
         parse("sound(bd,hh,sd)") match {
         case Parsed.Success(ast, _) =>
             val block = ast.blocks.head.asInstanceOf[SoundBlock]
-
             val expected = Pattern(List(
             Sequence(List(AtomElement(Sample("bd")))),
             Sequence(List(AtomElement(Sample("hh")))),
             Sequence(List(AtomElement(Sample("sd"))))
             ))
             assert(block.pattern == expected)
-
-        case f: Parsed.Failure =>
-            fail(s"Parsing failed: ${f.msg}")
+        case f: Parsed.Failure => fail(s"Parsing failed: ${f.msg}")
         }
     }
 
@@ -127,28 +150,31 @@ class SoundCodeParserSuite extends AnyFunSuite {
     }
 
     test("complex mixed pattern") {
-        parse("sound([bd hh],sd)") match {
+        parse("sound(bd hh, [bd <hh oh>])") match {
         case Parsed.Success(ast, _) =>
             val block = ast.blocks.head.asInstanceOf[SoundBlock]
 
-            // "[bd hh],sd" -> Pattern con 2 sequenze parallele (separate da virgola)
             val expected = Pattern(List(
-            Sequence(List(
-                SubPatternElement(Pattern(List(
                 Sequence(List(
+                AtomElement(Sample("bd")),
+                AtomElement(Sample("hh"))
+                )),
+                Sequence(List(
+                SubPatternElement(Pattern(List(
+                    Sequence(List(
                     AtomElement(Sample("bd")),
-                    AtomElement(Sample("hh"))
-                ))
+                    AlternationElement(Pattern(List(
+                        Sequence(List(
+                        AtomElement(Sample("hh")),
+                        AtomElement(Sample("oh"))
+                        ))
+                    )))
+                    ))
                 )))
-            )),
-            Sequence(List(
-                AtomElement(Sample("sd"))
-            ))
+                ))
             ))
             assert(block.pattern == expected)
-
-        case f: Parsed.Failure =>
-            fail(s"Parsing failed: ${f.msg}")
+        case f: Parsed.Failure => fail(s"Parsing failed: ${f.msg}")
         }
     }
 }
