@@ -20,5 +20,7 @@ enum Effect extends Element:
 
 case class TextPosition(startIndex: Int, endIndex: Int)
 
+case class ScheduledEvent(startTime: Double, endTime: Double, element: Element, appliedExtensions: List[Element] = Nil)
+
 type Note = String
 type Sample = String
