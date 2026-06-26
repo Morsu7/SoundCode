@@ -7,11 +7,11 @@
         <option name="externalProjectPath" value="$PROJECT_DIR$" />
         <option name="modules">
           <set>
-            <option value="C:\Users\morsu\Desktop\Università\Paradigmi di Programmazione e Sviluppo\soundCode\SoundCode" />
-            <option value="C:\Users\morsu\Desktop\Università\Paradigmi di Programmazione e Sviluppo\soundCode\SoundCode\project" />
+            <option value="C:\Users\morsu\Desktop\Università\Paradigmi di Programmazione e Sviluppo\soundCode\PPS-26-SoundCode" />
+            <option value="C:\Users\morsu\Desktop\Università\Paradigmi di Programmazione e Sviluppo\soundCode\PPS-26-SoundCode\project" />
           </set>
         </option>
-        <option name="sbtVersion" value="2.0.0" />
+        <option name="sbtVersion" value="1.10.7" />
         <option name="separateProdAndTestSourcesIsExplicit" value="true" />
       </SbtProjectSettings>
     </option>

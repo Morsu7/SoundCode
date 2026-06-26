@@ -2,6 +2,6 @@
 <project version="4">
   <component name="ScalaCompilerConfiguration">
     <option name="separateProdTestSources" value="true" />
-    <profile name="sbt 1" modules="SoundCode,SoundCode.main,SoundCode.test" />
+    <profile name="sbt 1" modules="PPS-26-SoundCode,PPS-26-SoundCode.main,PPS-26-SoundCode.test,SoundCode,SoundCode.main,SoundCode.test" />
   </component>
 </project>

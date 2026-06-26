@@ -7,7 +7,7 @@ trait Scheduler {
   def updateTimeline(streams: List[Stream]): Unit
   def stop(): Unit
 
-  def generateEvents(streams: List[Stream]): List[ScheduledEvent]
+  def generateEvents(): List[ScheduledEvent]
 }
 
 case class ScheduledEvent(startTime: Double, endTime: Double, element: Element, appliedExtensions: List[Element] = Nil)
@@ -20,6 +20,6 @@ class SchedulerImpl(bpm: Double) extends Scheduler {
 
   override def stop(): Unit = ???
 
-  override def generateEvents(streams: List[Stream]): List[ScheduledEvent] = ???
+  override def generateEvents(): List[ScheduledEvent] = ???
 }
 
