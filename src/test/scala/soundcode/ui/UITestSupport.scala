@@ -1,6 +1,6 @@
 package soundcode.ui
 
-import java.util.concurrent.CountDownLatch
+import java.util.concurrent.{CountDownLatch, TimeUnit}
 import java.util.concurrent.atomic.AtomicReference
 
 import javafx.scene.input.{KeyEvent, KeyCode}
@@ -11,23 +11,30 @@ import org.fxmisc.richtext.InlineCssTextArea
 trait UITestSupport extends AnyFunSuite:
   // ensures tests create and inspect JavaFX components on the JavaFX Application Thread.
   protected def onFxThread[A](body: => A): A =
-    val result = AtomicReference[A]()
-    val error = AtomicReference[Throwable]()
-    val latch = CountDownLatch(1)
+    if Platform.isFxApplicationThread then body
+    else
+      val result = AtomicReference[A]()
+      val error = AtomicReference[Throwable]()
+      val latch = CountDownLatch(1)
 
-    try Platform.startup(() => ())
-    catch case _: IllegalStateException => ()
+      try Platform.startup(() => ())
+      catch case _: IllegalStateException => ()
 
-    Platform.runLater(() =>
-      try result.set(body)
-      catch case throwable: Throwable => error.set(throwable)
-      finally latch.countDown()
-    )
+      Platform.runLater(() =>
+        try result.set(body)
+        catch case throwable: Throwable => error.set(throwable)
+        finally latch.countDown()
+      )
 
-    latch.await()
+      val completed = latch.await(5, TimeUnit.SECONDS)
 
-    if error.get() != null then throw error.get()
-    result.get()
+      if !completed then
+        throw RuntimeException(
+          "Timed out waiting for JavaFX Application Thread"
+        )
+
+      if error.get() != null then throw error.get()
+      result.get()
 
   protected def fireKeyTyped(
       editor: InlineCssTextArea,
