@@ -64,6 +64,10 @@ final class BlockEditorView:
       textProperty().addListener { (_, _, _) =>
         SyntaxHighlighter.applyTo(this)
       }
+      focusedProperty().addListener { (_, _, focused) =>
+        if focused then clearSelectionExcept(this)
+        else deselect()
+      }
       addEventFilter(
         KeyEvent.KEY_PRESSED,
         (event: KeyEvent) =>
@@ -88,14 +92,17 @@ final class BlockEditorView:
       AutoPairingSupport.install(this)
       SyntaxHighlighter.applyTo(this)
 
-  private def applySyntaxHighlighting(editor: InlineCssTextArea): Unit =
-    val text = editor.getText
-
   def play(): Unit =
     animatedViews.foreach(_.play())
 
   def stop(): Unit =
     animatedViews.foreach(_.stop())
+
+  private def clearSelectionExcept(activeBlock: InlineCssTextArea): Unit =
+    lineEditors.filterNot(_ eq activeBlock).foreach(_.deselect())
+
+  private def applySyntaxHighlighting(editor: InlineCssTextArea): Unit =
+    val text = editor.getText
 
   private def buildBlocks(code: String): Unit =
     val lines = code
