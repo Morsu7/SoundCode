@@ -19,11 +19,9 @@ import soundcode.ui.editor.SyntaxHighlighter
 import soundcode.ui.editor.AutoPairingSupport
 import soundcode.ui.visualizer.PianoRollView
 import soundcode.ui.visualizer.OscilloscopeView
+import soundcode.mvu.AppModel
 
-final class BlockEditorView(
-    initialCode: String,
-    onCodeChanged: String => Unit
-):
+final class BlockEditorView:
   private val LineHeight = 34
 
   private val lineEditors = Buffer.empty[InlineCssTextArea]
@@ -39,7 +37,11 @@ final class BlockEditorView(
     fitToWidth = true
     style = "-fx-background-color: #f4f4f5;"
 
-  buildBlocks(initialCode)
+  buildBlocks("")
+
+  def renderCode(code: String): Unit =
+    val current = currentCode
+    if current != code then buildBlocks(code)
 
   def currentCode: String =
     lineEditors.map(_.getText).mkString("\n")
@@ -61,7 +63,6 @@ final class BlockEditorView(
       )
       textProperty().addListener { (_, _, _) =>
         SyntaxHighlighter.applyTo(this)
-        onCodeChanged(currentCode)
       }
       addEventFilter(
         KeyEvent.KEY_PRESSED,
@@ -89,16 +90,6 @@ final class BlockEditorView(
 
   private def applySyntaxHighlighting(editor: InlineCssTextArea): Unit =
     val text = editor.getText
-
-  // temporary function to show the visualizer
-  private def temporaryVisualizerForLine(index: Int): Option[AnimatedView] =
-    index match
-      case 0 =>
-        Some(new PianoRollView)
-      case 1 =>
-        Some(new OscilloscopeView)
-      case _ =>
-        None
 
   def play(): Unit =
     animatedViews.foreach(_.play())
@@ -128,7 +119,7 @@ final class BlockEditorView(
 
   private def addBlock(line: String, index: Int): Unit =
     val editor = createLineEditor(line)
-    val visualizer = temporaryVisualizerForLine(index)
+    val visualizer = None
 
     lineEditors += editor
     visualizer.foreach(animatedViews += _)
@@ -197,8 +188,6 @@ final class BlockEditorView(
       nextEditor.requestFocus()
       nextEditor.moveTo(0)
 
-      onCodeChanged(currentCode)
-
   private def mergeWithPreviousLine(editor: InlineCssTextArea): Unit =
     val index = lineEditors.indexOf(editor)
 
@@ -218,8 +207,6 @@ final class BlockEditorView(
       previousEditor.requestFocus()
       previousEditor.moveTo(caretPosition)
 
-      onCodeChanged(currentCode)
-
   private def mergeWithNextLine(editor: InlineCssTextArea): Unit =
     val index = lineEditors.indexOf(editor)
 
@@ -238,8 +225,6 @@ final class BlockEditorView(
       val currentEditor = lineEditors(index)
       currentEditor.requestFocus()
       currentEditor.moveTo(caretPosition)
-
-      onCodeChanged(currentCode)
 
   private def moveFocus(editor: InlineCssTextArea, delta: Int): Unit =
     val currentIndex = lineEditors.indexOf(editor)

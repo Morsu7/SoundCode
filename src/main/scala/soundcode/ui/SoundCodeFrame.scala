@@ -2,10 +2,24 @@ package soundcode.ui
 
 import scalafx.application.JFXApp3
 import scalafx.scene.Scene
+import soundcode.mvu.SoundCodeRuntime
+import soundcode.mvu.AppModel
+import soundcode.mvu.Update
 
 object SoundCodeFrame extends JFXApp3:
   override def start(): Unit =
-    val mainView = MainView()
+    var mainView: MainView = null
+    val initialModel = AppModel()
+
+    val runtime = SoundCodeRuntime(
+      initialModel = initialModel,
+      update = Update.update,
+      render =
+        (model: AppModel) => if mainView != null then mainView.render(model)
+    )
+
+    mainView = MainView(runtime.dispatch)
+    mainView.render(initialModel)
 
     stage = new JFXApp3.PrimaryStage:
       title = "SoundCode"

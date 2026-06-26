@@ -1,5 +1,10 @@
 package soundcode.mvu
 
-class Cmd {
+sealed trait Cmd:
+  def run(dispatch: Msg => Unit): Unit
 
-}
+object Cmd:
+  case object None extends Cmd:
+    override def run(dispatch: Msg => Unit): Unit = println(
+      "No command to run."
+    )

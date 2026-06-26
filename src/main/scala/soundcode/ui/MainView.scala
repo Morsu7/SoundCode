@@ -8,15 +8,16 @@ import scalafx.scene.control.Label
 
 import javafx.event.{ActionEvent, EventHandler}
 import soundcode.ui.editor.BlockEditorView
+import soundcode.mvu.Msg
+import soundcode.mvu.AppModel
 
-class MainView:
-  private val editorView =
-    BlockEditorView(
-      initialCode = """|note("c4 a4").sound("piano")
-         |sound("hb hd hh")
-         |""".stripMargin.trim,
-      onCodeChanged = code => {} // TODO: handle code changes
-    )
+class MainView(
+    dispatch: Msg => Unit
+):
+  private val editorView = new BlockEditorView
+
+  def render(model: AppModel): Unit =
+    editorView.renderCode(model.code)
 
   val root: BorderPane = new BorderPane:
     padding = Insets(10)
@@ -33,5 +34,6 @@ class MainView:
           onAction = _ => editorView.stop()
         ,
         new Button("Update"):
-          onAction = _ => println("Update clicked")
+          onAction =
+            _ => dispatch(Msg.CodeUpdateRequested(editorView.currentCode))
       )
