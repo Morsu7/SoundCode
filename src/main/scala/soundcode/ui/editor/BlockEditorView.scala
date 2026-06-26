@@ -24,8 +24,8 @@ import soundcode.mvu.AppModel
 final class BlockEditorView:
   private val LineHeight = 34
 
-  private val lineEditors = Buffer.empty[InlineCssTextArea]
-  private val animatedViews = Buffer.empty[AnimatedView]
+  private var lineEditors = Vector.empty[InlineCssTextArea]
+  private var animatedViews = Vector.empty[AnimatedView]
 
   private val blocksBox = new VBox:
     spacing = 2
@@ -121,15 +121,17 @@ final class BlockEditorView:
 
   private def clearBlocks(): Unit =
     blocksBox.children.clear()
-    lineEditors.clear()
-    animatedViews.clear()
+    lineEditors = Vector.empty
+    animatedViews = Vector.empty
 
   private def addBlock(line: String, index: Int): Unit =
     val editor = createLineEditor(line)
     val visualizer = None
 
-    lineEditors += editor
-    visualizer.foreach(animatedViews += _)
+    lineEditors = lineEditors :+ editor
+    visualizer.foreach { view =>
+      animatedViews = animatedViews :+ view
+    }
 
     blocksBox.children.add(
       blockNode(editor, index + 1, visualizer)
@@ -185,11 +187,13 @@ final class BlockEditorView:
       val before = text.take(caret)
       val after = text.drop(caret)
 
-      val lines = lineEditors.map(_.getText).toBuffer
-      lines.update(index, before)
-      lines.insert(index + 1, after)
+      val lines = lineEditors.map(_.getText)
+      val updatedLines =
+        lines
+          .updated(index, before)
+          .patch(index + 1, Seq(after), 0)
 
-      buildBlocks(lines.mkString("\n"))
+      buildBlocks(updatedLines.mkString("\n"))
 
       val nextEditor = lineEditors(index + 1)
       nextEditor.requestFocus()
@@ -199,16 +203,16 @@ final class BlockEditorView:
     val index = lineEditors.indexOf(editor)
 
     if index > 0 then
-      val lines = lineEditors.map(_.getText).toBuffer
+      val lines = lineEditors.map(_.getText)
 
       val previous = lines(index - 1)
       val current = lines(index)
       val caretPosition = previous.length
 
-      lines.update(index - 1, previous + current)
-      lines.remove(index)
+      val updatedLines =
+        lines.updated(index - 1, previous + current).patch(index, Nil, 1)
 
-      buildBlocks(lines.mkString("\n"))
+      buildBlocks(updatedLines.mkString("\n"))
 
       val previousEditor = lineEditors(index - 1)
       previousEditor.requestFocus()
@@ -218,16 +222,18 @@ final class BlockEditorView:
     val index = lineEditors.indexOf(editor)
 
     if index >= 0 && index < lineEditors.length - 1 then
-      val lines = lineEditors.map(_.getText).toBuffer
+      val lines = lineEditors.map(_.getText)
 
       val current = lines(index)
       val next = lines(index + 1)
       val caretPosition = current.length
 
-      lines.update(index, current + next)
-      lines.remove(index + 1)
+      val updatedLines =
+        lines
+          .updated(index, current + next)
+          .patch(index + 1, Nil, 1)
 
-      buildBlocks(lines.mkString("\n"))
+      buildBlocks(updatedLines.mkString("\n"))
 
       val currentEditor = lineEditors(index)
       currentEditor.requestFocus()
