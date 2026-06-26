@@ -1,0 +1,255 @@
+package soundcode.ui.editor
+
+import javafx.scene.input.{KeyCode, KeyEvent}
+import scalafx.scene.layout.VBox
+import scalafx.geometry.Insets
+import scalafx.scene.control.ScrollPane
+import org.fxmisc.richtext.InlineCssTextArea
+import scalafx.scene.layout.HBox
+import scalafx.Includes.jfxNode2sfx
+import scalafx.scene.layout.Priority
+import scalafx.scene.control.Label
+import scalafx.geometry.Pos
+import scala.collection.mutable.Buffer
+import scalafx.scene.Node
+import scalafx.animation.PauseTransition
+import scalafx.util.Duration
+import soundcode.ui.visualizer.AnimatedView
+import soundcode.ui.editor.SyntaxHighlighter
+import soundcode.ui.editor.AutoPairingSupport
+import soundcode.ui.visualizer.PianoRollView
+import soundcode.ui.visualizer.OscilloscopeView
+import soundcode.mvu.AppModel
+
+final class BlockEditorView:
+  private val LineHeight = 34
+
+  private var lineEditors = Vector.empty[InlineCssTextArea]
+  private var animatedViews = Vector.empty[AnimatedView]
+
+  private val blocksBox = new VBox:
+    spacing = 2
+    padding = Insets(0)
+    style = "-fx-background-color: #f4f4f5;"
+
+  val root: ScrollPane = new ScrollPane:
+    content = blocksBox
+    fitToWidth = true
+    style = "-fx-background-color: #f4f4f5;"
+
+  buildBlocks("")
+
+  def renderCode(code: String): Unit =
+    val current = currentCode
+    if current != code then buildBlocks(code)
+
+  def currentCode: String =
+    lineEditors.map(_.getText).mkString("\n")
+
+  def createLineEditor(text: String): InlineCssTextArea =
+    new InlineCssTextArea:
+      replaceText(text.replace("\r", "").replace("\n", ""))
+      setPrefHeight(LineHeight)
+      setMinHeight(LineHeight)
+      setMaxHeight(LineHeight)
+      setPrefWidth(1000)
+      setStyle(
+        """
+          |-fx-font-family: 'Consolas';
+          |-fx-font-size: 15px;
+          |-fx-background-color: #f4f4f5;
+          |-fx-padding: 6 0 0 0;
+          |""".stripMargin
+      )
+      textProperty().addListener { (_, _, _) =>
+        SyntaxHighlighter.applyTo(this)
+      }
+      focusedProperty().addListener { (_, _, focused) =>
+        if focused then clearSelectionExcept(this)
+        else deselect()
+      }
+      addEventFilter(
+        KeyEvent.KEY_PRESSED,
+        (event: KeyEvent) =>
+          event.getCode match
+            case KeyCode.ENTER =>
+              event.consume()
+              splitLine(this)
+            case KeyCode.BACK_SPACE if getCaretPosition == 0 =>
+              event.consume()
+              mergeWithPreviousLine(this)
+            case KeyCode.DELETE if getCaretPosition == getLength =>
+              event.consume()
+              mergeWithNextLine(this)
+            case KeyCode.UP =>
+              event.consume()
+              moveFocus(this, -1)
+            case KeyCode.DOWN =>
+              event.consume()
+              moveFocus(this, 1)
+            case _ =>
+      )
+      AutoPairingSupport.install(this)
+      SyntaxHighlighter.applyTo(this)
+
+  def play(): Unit =
+    animatedViews.foreach(_.play())
+
+  def stop(): Unit =
+    animatedViews.foreach(_.stop())
+
+  private def clearSelectionExcept(activeBlock: InlineCssTextArea): Unit =
+    lineEditors.filterNot(_ eq activeBlock).foreach(_.deselect())
+
+  private def applySyntaxHighlighting(editor: InlineCssTextArea): Unit =
+    val text = editor.getText
+
+  private def buildBlocks(code: String): Unit =
+    val lines = code
+      .replace("\r\n", "\n")
+      .replace("\r", "\n")
+      .split("\n", -1)
+      .toSeq
+    rebuildFromLines(lines)
+
+  private def rebuildFromLines(lines: Seq[String]): Unit =
+    clearBlocks()
+
+    lines.zipWithIndex.foreach { case (line, index) =>
+      addBlock(line, index)
+    }
+
+  private def clearBlocks(): Unit =
+    blocksBox.children.clear()
+    lineEditors = Vector.empty
+    animatedViews = Vector.empty
+
+  private def addBlock(line: String, index: Int): Unit =
+    val editor = createLineEditor(line)
+    val visualizer = index match
+      case 0 => Some(new PianoRollView())
+      case 1 => Some(new OscilloscopeView())
+      case _ => None
+
+    lineEditors = lineEditors :+ editor
+    visualizer.foreach { view =>
+      animatedViews = animatedViews :+ view
+    }
+
+    blocksBox.children.add(
+      blockNode(editor, index + 1, visualizer)
+    )
+
+  private def blockNode(
+      editor: InlineCssTextArea,
+      lineNumber: Int,
+      visualizer: Option[AnimatedView]
+  ): VBox =
+    new VBox:
+      spacing = 0
+      children = Seq(
+        codeLineRow(editor, lineNumber)
+      ) ++ visualizer.map(_.root).toSeq
+
+  private def codeLineRow(editor: InlineCssTextArea, lineNumber: Int): HBox =
+    val editorNode = jfxNode2sfx(editor)
+    HBox.setHgrow(editorNode, Priority.Always)
+
+    new HBox:
+      spacing = 0
+      minHeight = LineHeight
+      maxHeight = LineHeight
+      prefHeight = LineHeight
+      style = "-fx-background-color: #f4f4f5;"
+      children = Seq(
+        new Label(lineNumber.toString):
+          minWidth = LineHeight
+          prefWidth = LineHeight
+          maxWidth = LineHeight
+          minHeight = LineHeight
+          prefHeight = LineHeight
+          alignment = Pos.CenterRight
+          padding = Insets(0, 8, 0, 0)
+          style = """
+            |-fx-text-fill: #64748b;
+            |-fx-background-color: #e5e7eb;
+            |-fx-font-family: 'Consolas';
+            |-fx-font-size: 13px;
+            |""".stripMargin
+        ,
+        editorNode
+      )
+
+  private def splitLine(editor: InlineCssTextArea): Unit =
+    val index = lineEditors.indexOf(editor)
+
+    if index >= 0 then
+      val caret = editor.getCaretPosition
+      val text = editor.getText
+
+      val before = text.take(caret)
+      val after = text.drop(caret)
+
+      val lines = lineEditors.map(_.getText)
+      val updatedLines =
+        lines
+          .updated(index, before)
+          .patch(index + 1, Seq(after), 0)
+
+      buildBlocks(updatedLines.mkString("\n"))
+
+      val nextEditor = lineEditors(index + 1)
+      nextEditor.requestFocus()
+      nextEditor.moveTo(0)
+
+  private def mergeWithPreviousLine(editor: InlineCssTextArea): Unit =
+    val index = lineEditors.indexOf(editor)
+
+    if index > 0 then
+      val lines = lineEditors.map(_.getText)
+
+      val previous = lines(index - 1)
+      val current = lines(index)
+      val caretPosition = previous.length
+
+      val updatedLines =
+        lines.updated(index - 1, previous + current).patch(index, Nil, 1)
+
+      buildBlocks(updatedLines.mkString("\n"))
+
+      val previousEditor = lineEditors(index - 1)
+      previousEditor.requestFocus()
+      previousEditor.moveTo(caretPosition)
+
+  private def mergeWithNextLine(editor: InlineCssTextArea): Unit =
+    val index = lineEditors.indexOf(editor)
+
+    if index >= 0 && index < lineEditors.length - 1 then
+      val lines = lineEditors.map(_.getText)
+
+      val current = lines(index)
+      val next = lines(index + 1)
+      val caretPosition = current.length
+
+      val updatedLines =
+        lines
+          .updated(index, current + next)
+          .patch(index + 1, Nil, 1)
+
+      buildBlocks(updatedLines.mkString("\n"))
+
+      val currentEditor = lineEditors(index)
+      currentEditor.requestFocus()
+      currentEditor.moveTo(caretPosition)
+
+  private def moveFocus(editor: InlineCssTextArea, delta: Int): Unit =
+    val currentIndex = lineEditors.indexOf(editor)
+    val nextIndex = currentIndex + delta
+
+    if nextIndex >= 0 && nextIndex < lineEditors.length then
+      val caretColumn = editor.getCaretPosition.min(editor.getLength)
+      val nextEditor = lineEditors(nextIndex)
+      val nextCaret = caretColumn.min(nextEditor.getLength)
+
+      nextEditor.requestFocus()
+      nextEditor.moveTo(nextCaret)

@@ -1,5 +1,7 @@
 package soundcode
 
+import soundcode.ui.SoundCodeFrame
+
 @main def main(): Unit = {
-  println("Hello word")
+  SoundCodeFrame.main(Array.empty)
 }
