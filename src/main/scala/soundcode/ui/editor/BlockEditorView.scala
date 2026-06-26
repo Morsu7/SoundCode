@@ -126,7 +126,10 @@ final class BlockEditorView:
 
   private def addBlock(line: String, index: Int): Unit =
     val editor = createLineEditor(line)
-    val visualizer = None
+    val visualizer = index match
+      case 0 => Some(new PianoRollView())
+      case 1 => Some(new OscilloscopeView())
+      case _ => None
 
     lineEditors = lineEditors :+ editor
     visualizer.foreach { view =>

@@ -4,16 +4,56 @@ import scalafx.scene.layout.VBox
 import scalafx.scene.control.Label
 import scalafx.scene.Node
 import scalafx.geometry.Insets
+import scalafx.scene.canvas.Canvas
+import scalafx.scene.canvas.GraphicsContext
+import scalafx.scene.paint.Color
+import scalafx.application.Platform
+import scalafx.animation.AnimationTimer
 
-final class OscilloscopeView extends AnimatedView:
-  private val view = new VBox:
-    spacing = 4
-    padding = Insets(8)
-    children = Seq(
-      new Label("Oscilloscope")
-    )
+final class OscilloscopeView(
+) extends CanvasAnimatedView("Oscilloscope"):
 
-  override val root: Node = view
+  override protected def draw(
+      gc: GraphicsContext,
+      currentBeat: Double,
+      w: Double,
+      h: Double
+  ): Unit =
+    drawBaseline(gc, w, h)
+    drawWaveform(gc, currentBeat, w, h)
 
-  override def play(): Unit = println("OscilloscopeView: play() called")
-  override def stop(): Unit = println("OscilloscopeView: stop() called")
+  private def drawBaseline(gc: GraphicsContext, w: Double, h: Double): Unit =
+    val centerY = h * 0.5
+
+    gc.stroke = Color.rgb(80, 80, 88)
+    gc.lineWidth = 1
+    gc.strokeLine(0, centerY, w, centerY)
+
+  private def drawWaveform(
+      gc: GraphicsContext,
+      currentBeat: Double,
+      w: Double,
+      h: Double
+  ): Unit =
+    val samples = 256
+    val visibleBeats = w / pixelsPerBeat
+    val centerY = h * 0.5
+    var amplitude = (h - config.verticalPadding * 2) * 0.38
+
+    gc.stroke = Color.White
+    gc.lineWidth = 2
+    gc.beginPath()
+
+    for sample <- 0 until samples do
+      val progress = sample.toDouble / (samples - 1)
+      val beat = currentBeat + progress * visibleBeats
+      val x = progress * w
+      val y = centerY + signalAt(beat) * amplitude
+
+      if sample == 0 then gc.moveTo(x, y)
+      else gc.lineTo(x, y)
+
+    gc.stroke()
+
+  private def signalAt(beat: Double): Double =
+    Math.sin(beat * 2 * Math.PI) * 0.5 + Math.sin(beat * 4 * Math.PI) * 0.25
