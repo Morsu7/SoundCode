@@ -13,7 +13,6 @@ object SoundCodeFrame extends JFXApp3:
 
     val runtime = SoundCodeRuntime(
       initialModel = initialModel,
-      update = Update.update,
       render =
         (model: AppModel) => if mainView != null then mainView.render(model)
     )
