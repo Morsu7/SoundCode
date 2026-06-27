@@ -23,7 +23,7 @@ object SchedulerImpl extends Scheduler {
 
         val activeExtensions = stream.extensions.flatMap { extPattern =>
           val extEvents = resolvePattern(extPattern, 0.0, 1.0, nCycle)
-          extEvents.find(e => e.startTime <= sampleTime && e.endTime > sampleTime)
+          extEvents.filter(e => e.startTime <= sampleTime && e.endTime > sampleTime)
             .map(_.element)
         }
         baseEvent.copy(appliedExtensions = activeExtensions)
@@ -45,6 +45,7 @@ object SchedulerImpl extends Scheduler {
 
           element match {
             case sound: Sound => List(ScheduledEvent(stepStart, stepEnd, sound))
+            case effect: Effect => List(ScheduledEvent(stepStart, stepEnd, effect))
             case AggregationPattern.SubPattern(sub) => resolvePattern(sub, stepStart, stepEnd, nCycle)
             case AggregationPattern.AlternationPattern(alt) =>
               alt.flatMap { layer =>
@@ -54,7 +55,6 @@ object SchedulerImpl extends Scheduler {
                   resolvePattern(List(Seq(choice)), stepStart, stepEnd, nCycle)
                 }
               }
-            case effect: Effect => Nil
           }
         }
       }

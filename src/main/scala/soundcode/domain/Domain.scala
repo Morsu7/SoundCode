@@ -20,6 +20,7 @@ enum Effect extends Element:
 
 case class TextPosition(startIndex: Int, endIndex: Int)
 
+//TODO modifica Element con Sound
 case class ScheduledEvent(startTime: Double, endTime: Double, element: Element, appliedExtensions: List[Element] = Nil)
 
 type Note = String

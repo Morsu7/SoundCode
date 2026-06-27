@@ -20,6 +20,8 @@ class SchedulerTest extends AnyFunSuite with Matchers {
       val extStrings = e.appliedExtensions.map {
         case Sound.NoteInText(n, _) => n
         case Sound.SampleInText(s, _) => s
+        case Effect.Gain(v) => v.toString
+        case Effect.Room(v) => v.toString
         case _ => "unknown"
       }
 
@@ -48,6 +50,63 @@ class SchedulerTest extends AnyFunSuite with Matchers {
       ExpEvent("hh", 0.25, 0.5, List()),
       ExpEvent("sn", 0.5, 0.75, List()),
       ExpEvent("hh", 0.75, 1.0, List())
+    )
+  }
+
+  test("<bd bd hh bd rim bd hh bd>") {
+    val stream = Stream(base = Patterns.`<bd bd hh bd rim bd hh bd>`, extensions = Nil)
+    SchedulerImpl.updateTimeline(List(stream))
+    val expectedOutcomes = List(
+      List(ExpEvent("bd", 0.0, 1.0)),
+      List(ExpEvent("bd", 0.0, 1.0)),
+      List(ExpEvent("hh", 0.0, 1.0)),
+      List(ExpEvent("bd", 0.0, 1.0)),
+      List(ExpEvent("rim", 0.0, 1.0)),
+      List(ExpEvent("bd", 0.0, 1.0)),
+      List(ExpEvent("hh", 0.0, 1.0)),
+      List(ExpEvent("bd", 0.0, 1.0))
+    )
+
+    for (cycleIndex <- 0 until 8) {
+      val events = SchedulerImpl.generateEvents(cycleIndex)
+
+      events should have size 1
+      toExpEvents(events) should contain theSameElementsInOrderAs expectedOutcomes(cycleIndex)
+    }
+  }
+
+  test("note(c f [ g h c# ]).sound(<bd [hh sn]> cp).room(4 5 [4] , <4 5 6>)") {
+    val stream = Stream(
+      base = Patterns.`c f [ g h c# ]`,
+      extensions = List(
+        Patterns.`<bd [hh sn]> cp`,
+        Patterns.`room(4 5 [4] , <4 5 6>)`
+      )
+    )
+
+    SchedulerImpl.updateTimeline(List(stream))
+    val events = SchedulerImpl.generateEvents(0)
+
+    events should not be empty
+
+    toExpEvents(events) should contain theSameElementsInOrderAs List(
+      ExpEvent("c", 0.0, 0.333, List("bd","4","4")),
+      ExpEvent("f", 0.333, 0.667, List("bd","5","4")),
+      ExpEvent("g", 0.667, 0.778, List("cp","4","4")),
+      ExpEvent("h", 0.778, 0.889, List("cp","4","4")),
+      ExpEvent("c#", 0.889, 1, List("cp","4","4"))
+    )
+
+    val events1 = SchedulerImpl.generateEvents(1)
+
+    events should not be empty
+
+    toExpEvents(events1) should contain theSameElementsInOrderAs List(
+      ExpEvent("c", 0.0, 0.333, List("hh", "4", "5")),
+      ExpEvent("f", 0.333, 0.667, List("sn", "5", "5")),
+      ExpEvent("g", 0.667, 0.778, List("cp", "4", "5")),
+      ExpEvent("h", 0.778, 0.889, List("cp", "4", "5")),
+      ExpEvent("c#", 0.889, 1, List("cp", "4", "5"))
     )
   }
 
