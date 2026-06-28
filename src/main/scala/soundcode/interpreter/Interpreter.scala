@@ -6,37 +6,38 @@ import soundcode.domain
 
 object Interpreter {
 
+    private def interpretGenerative(block: GenerativeBlock): (domain.Pattern, String) = block match {
+        case SoundBlock(pattern) => (interpretPattern(pattern)(interpretSoundAtom), "sound")
+        case NoteBlock(pattern)  => (interpretPattern(pattern)(interpretSoundAtom), "note")
+    }
+
     def interpret(tree: ProgramAST): List[domain.Stream] = {
         tree.blocks.map { case StreamBlock(base, extensions) =>
-            // Extraxt generative blocks (SoundBlock and NoteBlock) from the base and extensions
             // note: only one sound and note block are allowed per stream, we will take the first and ignore the rest
-            val generativeBlocks = base :: extensions.collect {
-                case GenerativeExtensionBlock(genBlock) => genBlock
-            }
+            // the first generative block is the base and dictate the main cycle division, the rest are extensions
+            // if the extensions contains a generative block, it will be a different type (sound vs note) and placed at pos 0 of the list
             
-            val samplesPattern: Option[domain.Pattern[domain.SampleInText]] = 
-                generativeBlocks.collectFirst { case SoundBlock(p) => 
-                    interpretPattern(p)(interpretSampleAtom).asInstanceOf[domain.Pattern[domain.SampleInText]]
-                }
-            val notesPattern: Option[domain.Pattern[domain.NoteInText]] = 
-                generativeBlocks.collectFirst { case NoteBlock(p) => 
-                    interpretPattern(p)(interpretNoteAtom).asInstanceOf[domain.Pattern[domain.NoteInText]]
-                }
+            val (basePattern, baseType): (domain.Pattern, String) = interpretGenerative(base)
 
-            val effectPatterns: List[domain.Pattern[domain.Effect]] = extensions.collect {
-                case TransformationExtensionBlock(transBlock) => 
-                    interpretTransformationBlock(transBlock)
+            // 2. Find the extension that is NOT the same type as the base
+            val generativeExtensionPattern = extensions.collectFirst {
+                case GenerativeExtensionBlock(gBlock) =>
+                    val (pattern, gType) = interpretGenerative(gBlock)
+                    if (gType != baseType) Some(pattern) else None
+            }.flatten
+
+            val effectPatterns: List[domain.Pattern] = extensions.collect {
+                case TransformationExtensionBlock(transBlock) => interpretTransformationBlock(transBlock)
             }
 
             domain.Stream(
-                samplePattern = samplesPattern,
-                notePattern = notesPattern,
-                effectPatterns = effectPatterns
+                base = basePattern,
+                extensions = generativeExtensionPattern.toList ++ effectPatterns
             )
         }
     }
 
-    private def interpretTransformationBlock(block: TransformationBlock): domain.Pattern[domain.Effect] = {
+    private def interpretTransformationBlock(block: TransformationBlock): domain.Pattern = {
         block match {
             case Reverse() => List(Seq(domain.Effect.Reverse))
             case Juxtaposition(ts) => ts.flatMap(interpretTransformationBlock)
@@ -48,23 +49,23 @@ object Interpreter {
             block match {
                 // Se nel tuo dominio Gain vuole direttamente il Pattern[Double] o Pattern[Effect],
                 // usiamo interpretPattern per convertire l'albero di Config in elementi del dominio
-                case Gain(p)           => interpretPattern(p)(c => domain.Effect.Gain(c.value)).asInstanceOf[domain.Pattern[domain.Effect]]
-                case Pan(p)            => interpretPattern(p)(c => domain.Effect.Pan(c.value)).asInstanceOf[domain.Pattern[domain.Effect]]
-                case Room(p)           => interpretPattern(p)(c => domain.Effect.Room(c.value)).asInstanceOf[domain.Pattern[domain.Effect]]
-                case Delay(p)          => interpretPattern(p)(c => domain.Effect.Delay(c.value)).asInstanceOf[domain.Pattern[domain.Effect]]
-                case LowPassFilter(p)  => interpretPattern(p)(c => domain.Effect.LowPass(c.value)).asInstanceOf[domain.Pattern[domain.Effect]]
-                case HighPassFilter(p) => interpretPattern(p)(c => domain.Effect.HighPass(c.value)).asInstanceOf[domain.Pattern[domain.Effect]]
-                case Repetition(p)     => interpretPattern(p)(c => domain.Effect.Repetition(c.value)).asInstanceOf[domain.Pattern[domain.Effect]]
-                case FastForward(p)    => interpretPattern(p)(c => domain.Effect.FastForward(c.value)).asInstanceOf[domain.Pattern[domain.Effect]]
-                case SlowMotion(p)     => interpretPattern(p)(c => domain.Effect.SlowMotion(c.value)).asInstanceOf[domain.Pattern[domain.Effect]]
-                case Early(p)          => interpretPattern(p)(c => domain.Effect.Early(c.value)).asInstanceOf[domain.Pattern[domain.Effect]]
-                case Late(p)           => interpretPattern(p)(c => domain.Effect.Late(c.value)).asInstanceOf[domain.Pattern[domain.Effect]]
+                case Gain(p)           => interpretPattern(p)(c => domain.Effect.Gain(c.value))
+                case Pan(p)            => interpretPattern(p)(c => domain.Effect.Pan(c.value))
+                case Room(p)           => interpretPattern(p)(c => domain.Effect.Room(c.value))
+                case Delay(p)          => interpretPattern(p)(c => domain.Effect.Delay(c.value))
+                case LowPassFilter(p)  => interpretPattern(p)(c => domain.Effect.LowPass(c.value))
+                case HighPassFilter(p) => interpretPattern(p)(c => domain.Effect.HighPass(c.value))
+                case Repetition(p)     => interpretPattern(p)(c => domain.Effect.Repetition(c.value))
+                case FastForward(p)    => interpretPattern(p)(c => domain.Effect.FastForward(c.value))
+                case SlowMotion(p)     => interpretPattern(p)(c => domain.Effect.SlowMotion(c.value))
+                case Early(p)          => interpretPattern(p)(c => domain.Effect.Early(c.value))
+                case Late(p)           => interpretPattern(p)(c => domain.Effect.Late(c.value))
                 case _                 => throw new MatchError(effectBlock)
             }
         }
     }
 
-    private def interpretPattern[A <: Atom](pattern: Pattern[A])(buildAtom: A => domain.Element): domain.Pattern[domain.Element] = {
+    private def interpretPattern[A <: Atom](pattern: Pattern[A])(buildAtom: A => domain.Element): domain.Pattern = {
         pattern.elems.map { sequence => 
             sequence.elems.map { element => interpretElement(element)(buildAtom) }
         }
@@ -75,20 +76,26 @@ object Interpreter {
         case AtomElement(atom) => buildAtom(atom)
         case SubPatternElement(p) => domain.AggregationPattern.SubPattern(interpretPattern(p)(buildAtom))
         case AlternationElement(p) => domain.AggregationPattern.AlternationPattern(interpretPattern(p)(buildAtom))
+        // TODO implement speed modifiers
         case SpeedModifiedElement(base, _, _) => interpretElement(base)(buildAtom)
         }
     }
 
-    // --- 4. LE LOGICHE ATOMICHE SEPARATE ---
-    private def interpretSampleAtom(atom: Atom): domain.Element = atom match {
-        case Sample(value) => domain.SampleInText(value, domain.TextPosition(0, 0))
+    private def interpretSoundAtom(atom: Atom): domain.Sound = atom match {
+        case Sample(value) => interpretSampleAtom(atom)
+        case Note(name, accidental, octave) => interpretNoteAtom(atom)
+        case _ => throw new IllegalArgumentException("Expected Sample or Note")
+    }
+
+    private def interpretSampleAtom(atom: Atom): domain.Sound = atom match {
+        case Sample(value) => domain.Sound.SampleInText(domain.Sample(value), domain.TextPosition(0, 0))
         case _ => throw new IllegalArgumentException("Expected Sample")
     }
 
-    private def interpretNoteAtom(atom: Atom): domain.Element = atom match {
+    private def interpretNoteAtom(atom: Atom): domain.Sound = atom match {
         case Note(name, accidental, octave) => 
         val noteStr = s"$name${accidental.getOrElse("")}${octave}"
-        domain.NoteInText(noteStr, domain.TextPosition(0, 0))
+        domain.Sound.NoteInText(domain.Note(noteStr), domain.TextPosition(0, 0))
         case _ => throw new IllegalArgumentException("Expected Note")
     }
 }
