@@ -13,6 +13,7 @@ object Update:
 
       case Msg.PlaybackTick(currentBeat) =>
         (
-          model.copy(currentBeat = currentBeat, isPlaying = true),
+          //model.copy(currentBeat = currentBeat, isPlaying = true),
+          model,
           NoOp
         )
