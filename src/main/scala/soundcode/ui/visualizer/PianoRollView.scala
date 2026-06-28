@@ -15,7 +15,7 @@ import scalafx.scene.paint.Color
 import scalafx.scene.canvas.GraphicsContext
 import scalafx.application.Platform
 
-final class PianoRollView extends CanvasAnimatedView("Piano Roll"):
+final class PianoRollView extends CanvasAnimatedView:
   private val minPitch = notes.map(_.pitch).min
   private val maxPitch = notes.map(_.pitch).max
 
