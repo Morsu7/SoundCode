@@ -1,13 +1,37 @@
 package soundcode.domain
 
-case class Stream(base: Pattern, extensions: List[Pattern])
+opaque type Phase = Double
+object Phase:
+  def apply(value: Double): Phase = value
+  extension (p: Phase) def toDouble: Double = p
 
-type Pattern = List[Seq[Element]]
+
+opaque type AbsoluteTime = Long
+object AbsoluteTime:
+  def apply(value: Long): AbsoluteTime = value
+  extension (t: AbsoluteTime)
+    def toLong: Long = t
+    def +(other: Long): AbsoluteTime = AbsoluteTime(t + other)
+    def -(other: Long): AbsoluteTime = AbsoluteTime(t - other)
+    def <(other: AbsoluteTime): Boolean = t < other
+    def <=(other: AbsoluteTime): Boolean = t <= other
+
+opaque type Note = String
+object Note:
+  def apply(value: String): Note = value
+  extension (n: Note) def value: String = n
+
+opaque type Sample = String
+object Sample:
+  def apply(value: String): Sample = value
+  extension (s: Sample) def value: String = s
+
+case class TextPosition(startIndex: Int, endIndex: Int)
 
 sealed trait Element
 
 enum Sound extends Element:
-  case NoteInText(nota: Note, position: TextPosition)
+  case NoteInText(note: Note, position: TextPosition)
   case SampleInText(sample: Sample, position: TextPosition)
 
 enum AggregationPattern extends Element:
@@ -18,10 +42,8 @@ enum Effect extends Element:
   case Gain(value: Int)
   case Room(value: Int)
 
-case class TextPosition(startIndex: Int, endIndex: Int)
+type Pattern = List[Seq[Element]]
 
-//TODO modifica Element con Sound
-case class ScheduledEvent(startTime: Double, endTime: Double, element: Element, appliedExtensions: List[Element] = Nil)
+case class Stream(base: Pattern, extensions: List[Pattern])
 
-type Note = String
-type Sample = String
+case class ScheduledEvent(startTime: Phase, endTime: Phase, element: Element, appliedExtensions: List[Element] = Nil)

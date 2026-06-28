@@ -3,48 +3,46 @@ package soundcode.engine
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
 import soundcode.domain.*
-import soundcode.engine.SchedulerImpl
+
+// Importiamo i given necessari
+import soundcode.engine.Resolvable.given
 
 class SchedulerTest extends AnyFunSuite with Matchers {
 
-  //--------------------------UTILITY-----------------------------------
   val pos = TextPosition(0, 0)
-
   case class ExpEvent(element: String, start: Double, end: Double, extensions: List[String] = Nil)
 
-  // Utility per arrotondare i Double a 3 cifre decimali
   def round3(d: Double): Double = Math.round(d * 1000.0) / 1000.0
 
   def toExpEvents(events: List[ScheduledEvent]): List[ExpEvent] = {
     events.map { e =>
       val extStrings = e.appliedExtensions.map {
-        case Sound.NoteInText(n, _) => n
-        case Sound.SampleInText(s, _) => s
+        // Estraiamo il valore dalle opaque type
+        case Sound.NoteInText(n, _) => n.value
+        case Sound.SampleInText(s, _) => s.value
         case Effect.Gain(v) => v.toString
         case Effect.Room(v) => v.toString
         case _ => "unknown"
       }
 
-      val rStart = round3(e.startTime)
-      val rEnd = round3(e.endTime)
+      // Convertiamo Phase in Double per il test
+      val rStart = round3(e.startTime.toDouble)
+      val rEnd = round3(e.endTime.toDouble)
 
       e.element match {
-        case Sound.SampleInText(s, _) => ExpEvent(s, rStart, rEnd, extStrings)
-        case Sound.NoteInText(n, _) => ExpEvent(n, rStart, rEnd, extStrings)
+        case Sound.SampleInText(s, _) => ExpEvent(s.value, rStart, rEnd, extStrings)
+        case Sound.NoteInText(n, _) => ExpEvent(n.value, rStart, rEnd, extStrings)
         case _ => ExpEvent("unknown", rStart, rEnd, extStrings)
       }
     }
   }
-  //-----------------------------------------------------------------------------
 
   test("bd hh sn hh") {
-
     val stream = Stream(base = Patterns.`bd Hh Sn Hh`, extensions = Nil)
-    SchedulerImpl.updateTimeline(List(stream))
-    val events = SchedulerImpl.generateEvents(0)
+
+    val events = SchedulerImpl.generateEvents(List(stream), 0)
 
     events should have size 4
-
     toExpEvents(events) should contain theSameElementsInOrderAs List(
       ExpEvent("bd", 0.0, 0.25, List()),
       ExpEvent("hh", 0.25, 0.5, List()),
@@ -55,7 +53,6 @@ class SchedulerTest extends AnyFunSuite with Matchers {
 
   test("<bd bd hh bd rim bd hh bd>") {
     val stream = Stream(base = Patterns.`<bd bd hh bd rim bd hh bd>`, extensions = Nil)
-    SchedulerImpl.updateTimeline(List(stream))
     val expectedOutcomes = List(
       List(ExpEvent("bd", 0.0, 1.0)),
       List(ExpEvent("bd", 0.0, 1.0)),
@@ -68,8 +65,7 @@ class SchedulerTest extends AnyFunSuite with Matchers {
     )
 
     for (cycleIndex <- 0 until 8) {
-      val events = SchedulerImpl.generateEvents(cycleIndex)
-
+      val events = SchedulerImpl.generateEvents(List(stream), cycleIndex)
       events should have size 1
       toExpEvents(events) should contain theSameElementsInOrderAs expectedOutcomes(cycleIndex)
     }
@@ -84,11 +80,8 @@ class SchedulerTest extends AnyFunSuite with Matchers {
       )
     )
 
-    SchedulerImpl.updateTimeline(List(stream))
-    val events = SchedulerImpl.generateEvents(0)
-
+    val events = SchedulerImpl.generateEvents(List(stream), 0)
     events should not be empty
-
     toExpEvents(events) should contain theSameElementsInOrderAs List(
       ExpEvent("c", 0.0, 0.333, List("bd","4","4")),
       ExpEvent("f", 0.333, 0.667, List("bd","5","4")),
@@ -97,10 +90,8 @@ class SchedulerTest extends AnyFunSuite with Matchers {
       ExpEvent("c#", 0.889, 1, List("cp","4","4"))
     )
 
-    val events1 = SchedulerImpl.generateEvents(1)
-
+    val events1 = SchedulerImpl.generateEvents(List(stream), 1)
     events should not be empty
-
     toExpEvents(events1) should contain theSameElementsInOrderAs List(
       ExpEvent("c", 0.0, 0.333, List("hh", "4", "5")),
       ExpEvent("f", 0.333, 0.667, List("sn", "5", "5")),
@@ -111,14 +102,10 @@ class SchedulerTest extends AnyFunSuite with Matchers {
   }
 
   test("sound(\"bd hh\").note(\"c f g\")") {
-
     val stream = Stream(base = Patterns.`bd Hh`, extensions = List(Patterns.`c f g`))
-
-    SchedulerImpl.updateTimeline(List(stream))
-    val events = SchedulerImpl.generateEvents(0)
+    val events = SchedulerImpl.generateEvents(List(stream), 0)
 
     events should have size 2
-
     toExpEvents(events) should contain theSameElementsInOrderAs List(
       ExpEvent("bd", 0.0, 0.5, List("c")),
       ExpEvent("hh", 0.5, 1, List("f"))
@@ -126,38 +113,27 @@ class SchedulerTest extends AnyFunSuite with Matchers {
   }
 
   test("bd hh sn hh [hh , sn < bd hh > ]") {
-
     val stream = Stream(base = Patterns.`bd hh sn hh [hh , sn < bd hh > ]`, extensions = Nil)
-    SchedulerImpl.updateTimeline(List(stream))
-    val firstCycle = SchedulerImpl.generateEvents(0)
+    val firstCycle = SchedulerImpl.generateEvents(List(stream), 0)
 
     firstCycle should have size 7
-
     toExpEvents(firstCycle) should contain allOf(
-      // Step 1-4
       ExpEvent("bd", 0.0, 0.2),
       ExpEvent("hh", 0.2, 0.4),
       ExpEvent("sn", 0.4, 0.6),
       ExpEvent("hh", 0.6, 0.8),
-
-      // Step 5: SubPattern
       ExpEvent("hh", 0.8, 1),
       ExpEvent("sn", 0.8, 0.9),
       ExpEvent("bd", 0.9, 1)
     )
 
-    val secondCycle = SchedulerImpl.generateEvents(1)
-
+    val secondCycle = SchedulerImpl.generateEvents(List(stream), 1)
     secondCycle should have size 7
-
     toExpEvents(secondCycle) should contain allOf(
-      // Step 1-4
       ExpEvent("bd", 0.0, 0.2),
       ExpEvent("hh", 0.2, 0.4),
       ExpEvent("sn", 0.4, 0.6),
       ExpEvent("hh", 0.6, 0.8),
-
-      // Step 5: SubPattern
       ExpEvent("hh", 0.8, 1),
       ExpEvent("sn", 0.8, 0.9),
       ExpEvent("hh", 0.9, 1)
@@ -166,32 +142,27 @@ class SchedulerTest extends AnyFunSuite with Matchers {
 
   test("bd [hh [sn cp]]") {
     val stream = Stream(base = Patterns.`bd [hh [sn cp]]`, extensions = Nil)
-    SchedulerImpl.updateTimeline(List(stream))
-    val events = SchedulerImpl.generateEvents(0)
+    val events = SchedulerImpl.generateEvents(List(stream), 0)
 
     events should have size 4
-
     toExpEvents(events) should contain theSameElementsInOrderAs List(
-      ExpEvent("bd", 0.0, 0.5), // Metà ciclo
-      ExpEvent("hh", 0.5, 0.75), // Un quarto di ciclo
-      ExpEvent("sn", 0.75, 0.875), // Un ottavo
-      ExpEvent("cp", 0.875, 1.0) // Un ottavo
+      ExpEvent("bd", 0.0, 0.5),
+      ExpEvent("hh", 0.5, 0.75),
+      ExpEvent("sn", 0.75, 0.875),
+      ExpEvent("cp", 0.875, 1.0)
     )
   }
 
   test("<bd [hh sn]> cp") {
     val stream = Stream(base = Patterns.`<bd [hh sn]> cp`, extensions = Nil)
-    SchedulerImpl.updateTimeline(List(stream))
+    val eventsGiro0 = SchedulerImpl.generateEvents(List(stream), 0)
 
-    // GIRO 0: Sceglie 'bd' (1 elemento). Diviso tra Alternanza e 'cp'
-    val eventsGiro0 = SchedulerImpl.generateEvents(0)
     toExpEvents(eventsGiro0) should contain theSameElementsInOrderAs List(
       ExpEvent("bd", 0.0, 0.5),
       ExpEvent("cp", 0.5, 1.0)
     )
 
-    // GIRO 1: Sceglie 'hh sn' (2 elementi). Il primo 0.5 viene diviso a metà!
-    val eventsGiro1 = SchedulerImpl.generateEvents(1)
+    val eventsGiro1 = SchedulerImpl.generateEvents(List(stream), 1)
     toExpEvents(eventsGiro1) should contain theSameElementsInOrderAs List(
       ExpEvent("hh", 0.0, 0.25),
       ExpEvent("sn", 0.25, 0.5),
@@ -201,13 +172,9 @@ class SchedulerTest extends AnyFunSuite with Matchers {
 
   test("[bd hh, cp cp cp]") {
     val stream = Stream(base = Patterns.`[bd hh, cp cp cp]`, extensions = Nil)
-    SchedulerImpl.updateTimeline(List(stream))
-    val events = SchedulerImpl.generateEvents(0)
+    val events = SchedulerImpl.generateEvents(List(stream), 0)
 
     events should have size 5
-
-    // Il primo layer si divide in due (0.0-0.5, 0.5-1.0)
-    // Il secondo si divide in tre (0.0-0.333, 0.333-0.667, 0.667-1.0)
     toExpEvents(events) should contain allOf(
       ExpEvent("bd", 0.0, 0.5),
       ExpEvent("hh", 0.5, 1.0),
@@ -219,14 +186,9 @@ class SchedulerTest extends AnyFunSuite with Matchers {
 
   test("sound(\"bd sn hh\").note(\"c f\")") {
     val stream = Stream(base = Patterns.`bd sn hh`, extensions = List(Patterns.`c f`))
-    SchedulerImpl.updateTimeline(List(stream))
-    val events = SchedulerImpl.generateEvents(0)
+    val events = SchedulerImpl.generateEvents(List(stream), 0)
 
     events should have size 3
-
-    // La base suona a: 0.0, 0.333, 0.666
-    // L'estensione cambia a: 0.5
-    // Quindi 'bd' e 'sn' prendono "c", 'hh' prende "f"!
     toExpEvents(events) should contain theSameElementsInOrderAs List(
       ExpEvent("bd", 0.0, 0.333, List("c")),
       ExpEvent("sn", 0.333, 0.667, List("c")),
@@ -236,11 +198,9 @@ class SchedulerTest extends AnyFunSuite with Matchers {
 
   test("bd hh sn hh < bd hh , hh , hh >") {
     val stream = Stream(base = Patterns.`bd hh sn hh < bd hh , hh , hh >`, extensions = Nil)
-    SchedulerImpl.updateTimeline(List(stream))
+    val eventsGiro0 = SchedulerImpl.generateEvents(List(stream), 0)
 
-    val eventsGiro0 = SchedulerImpl.generateEvents(0)
-
-    eventsGiro0 should have size 7 // 4 note base + 3 in parallelo alla fine
+    eventsGiro0 should have size 7
     toExpEvents(eventsGiro0) should contain theSameElementsAs List(
       ExpEvent("bd", 0.0, 0.2),
       ExpEvent("hh", 0.2, 0.4),
@@ -251,9 +211,7 @@ class SchedulerTest extends AnyFunSuite with Matchers {
       ExpEvent("hh", 0.8, 1.0)
     )
 
-    // GIRO 1: bd hh sn hh | [hh, hh, hh] in parallelo (da 0.8 a 1.0)
-    val eventsGiro1 = SchedulerImpl.generateEvents(1)
-
+    val eventsGiro1 = SchedulerImpl.generateEvents(List(stream), 1)
     eventsGiro1 should have size 7
     toExpEvents(eventsGiro1) should contain theSameElementsAs List(
       ExpEvent("bd", 0.0, 0.2),

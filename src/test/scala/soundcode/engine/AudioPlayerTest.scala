@@ -4,11 +4,15 @@ import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
 import soundcode.domain.*
 
+import soundcode.engine.Resolvable.given
+
 class AudioPlayerTest extends AnyFunSuite with Matchers {
+
+  given Scheduler = SchedulerImpl
 
   test("bd hh sn hh") {
     val player = setupPlayer(Patterns.`bd Hh Sn Hh`)
-    val events = playCycle(player, 0) // Niente più 1999L a mano!
+    val events = playCycle(player, 0)
 
     events should have size 4
     events should contain theSameElementsInOrderAs List(
@@ -34,9 +38,6 @@ class AudioPlayerTest extends AnyFunSuite with Matchers {
 
     // --- CICLO 0 ---
     val cycle0 = playCycle(player, 0)
-
-
-
     cycle0 should have size 7
     cycle0 should contain theSameElementsAs List(
       PlayedEvent("bd", 0L, 400L),
@@ -62,13 +63,11 @@ class AudioPlayerTest extends AnyFunSuite with Matchers {
   }
 
   test("Scalabilità del tempo: cps = 1.0 (1 secondo per ciclo)") {
-    // A cps = 1.0, il ciclo dura esattamente 1000ms.
     val myCps = 1.0
     val player = setupPlayer(Patterns.`bd Hh Sn Hh`, cps = myCps)
     val events = playCycle(player, 0, myCps)
 
     events should have size 4
-    // Le note durano 250ms l'una (1000 / 4) invece di 500ms!
     events should contain theSameElementsInOrderAs List(
       PlayedEvent("bd", 0L, 250L),
       PlayedEvent("hh", 250L, 250L),
@@ -78,12 +77,10 @@ class AudioPlayerTest extends AnyFunSuite with Matchers {
   }
 
   test("Scalabilità estrema: cps = 2.0 (Mezzo secondo per ciclo)") {
-    // A cps = 2.0, il ciclo dura 500ms. Modalità "Breakcore"!
     val myCps = 2.0
     val player = setupPlayer(Patterns.`bd Hh Sn Hh`, cps = myCps)
     val events = playCycle(player, 0, myCps)
 
-    // Le note durano 125ms l'una (500 / 4)
     events should contain theSameElementsInOrderAs List(
       PlayedEvent("bd", 0L, 125L),
       PlayedEvent("hh", 125L, 125L),
@@ -94,7 +91,6 @@ class AudioPlayerTest extends AnyFunSuite with Matchers {
 
   test("Inversione: base Note e estensione Sample (note(\"c f\").sound(\"bd\"))") {
     val pos = TextPosition(0, 0)
-
     val player = setupPlayer(base = Patterns.`c f`, extensions = List(Patterns.`bd sn hh`))
     val events = playCycle(player, 0)
 
@@ -106,11 +102,9 @@ class AudioPlayerTest extends AnyFunSuite with Matchers {
 
   test("Propagazione degli Effetti (Gain e Room)") {
     val pos = TextPosition(0, 0)
-
     val player = setupPlayer(Patterns.`bd sn hh`, extensions = List(Patterns.`gain 3 5`, Patterns.`room 6`))
     val events = playCycle(player, 0)
 
-    // Entrambi i sample devono ricevere contemporaneamente gain e room!
     events should contain theSameElementsInOrderAs List(
       PlayedEvent("bd", 0L, 667L, List("gain(3)", "room(6)")),
       PlayedEvent("sn", 666L, 667L, List("gain(3)", "room(6)")),
@@ -118,55 +112,50 @@ class AudioPlayerTest extends AnyFunSuite with Matchers {
     )
   }
 
-
   case class PlayedEvent(name: String, triggerTimeMs: Long, durationMs: Long, extensions: List[String] = Nil)
 
-  class TestableAudioPlayer(cps: Double) extends AudioPlayer(cps) {
+  class TestableAudioPlayer(cps: Double)(using Scheduler, Resolvable[Pattern]) extends AudioPlayer(cps) {
     var playedEvents: List[PlayedEvent] = Nil
-    var simulatedNow: Long = 0L
+    var simulatedNow: AbsoluteTime = AbsoluteTime(0L)
 
-    override def tick(now: Long): Unit = {
+    override def tick(now: AbsoluteTime): Unit = {
       simulatedNow = now
       super.tick(now)
     }
 
     override protected def triggerSound(element: Element, durationMs: Long, extensions: List[Element]): Unit = {
+      // Usiamo .value per estrarre la stringa dall'Opaque Type
       val name = element match {
-        case Sound.SampleInText(s, _) => s
-        case Sound.NoteInText(n, _) => n
+        case Sound.SampleInText(s, _) => s.value
+        case Sound.NoteInText(n, _) => n.value
         case _ => "unknown"
       }
       val extNames = extensions.map {
-        case Sound.SampleInText(s, _) => s
-        case Sound.NoteInText(n, _) => n
+        case Sound.SampleInText(s, _) => s.value
+        case Sound.NoteInText(n, _) => n.value
         case Effect.Gain(v) => s"gain($v)"
         case Effect.Room(v) => s"room($v)"
         case _ => "unknown"
       }
-      playedEvents = playedEvents :+ PlayedEvent(name, simulatedNow, durationMs, extNames)
+      playedEvents = playedEvents :+ PlayedEvent(name, simulatedNow.toLong, durationMs, extNames)
     }
   }
 
-  // Setup in una riga
   def setupPlayer(base: Pattern, extensions: List[Pattern] = Nil, cps: Double = 0.5): TestableAudioPlayer = {
     val player = new TestableAudioPlayer(cps)
-    SchedulerImpl.updateTimeline(List(Stream(base, extensions)))
+    player.updateTimeline(List(Stream(base, extensions)))
     player
   }
 
-  // Simula un intero ciclo e restituisce SOLO gli eventi di quel ciclo
   def playCycle(player: TestableAudioPlayer, cycleIndex: Int, cps: Double = 0.5): List[PlayedEvent] = {
     val cycleDurationMs = (1000.0 / cps).toLong
     val startMs = cycleIndex * cycleDurationMs
     val endMs = startMs + cycleDurationMs - 1
     for (t <- startMs to endMs) {
-      player.tick(t)
+      player.tick(AbsoluteTime(t))
     }
-    // Estraiamo gli eventi e puliamo la spia
     val events = player.playedEvents
     player.playedEvents = Nil
     events
   }
-
-  //-----------------------------------------------------------------------------
 }
