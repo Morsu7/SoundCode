@@ -83,21 +83,21 @@ class SchedulerTest extends AnyFunSuite with Matchers {
     val events = SchedulerImpl.generateEvents(List(stream), 0)
     events should not be empty
     toExpEvents(events) should contain theSameElementsInOrderAs List(
-      ExpEvent("c", 0.0, 0.333, List("bd","4","4")),
-      ExpEvent("f", 0.333, 0.667, List("bd","5","4")),
-      ExpEvent("g", 0.667, 0.778, List("cp","4","4")),
-      ExpEvent("h", 0.778, 0.889, List("cp","4","4")),
-      ExpEvent("c#", 0.889, 1, List("cp","4","4"))
+      ExpEvent("c", 0.0, 0.333, List("bd","4.0","4.0")),
+      ExpEvent("f", 0.333, 0.667, List("bd","5.0","4.0")),
+      ExpEvent("g", 0.667, 0.778, List("cp","4.0","4.0")),
+      ExpEvent("h", 0.778, 0.889, List("cp","4.0","4.0")),
+      ExpEvent("c#", 0.889, 1, List("cp","4.0","4.0"))
     )
 
     val events1 = SchedulerImpl.generateEvents(List(stream), 1)
     events should not be empty
     toExpEvents(events1) should contain theSameElementsInOrderAs List(
-      ExpEvent("c", 0.0, 0.333, List("hh", "4", "5")),
-      ExpEvent("f", 0.333, 0.667, List("sn", "5", "5")),
-      ExpEvent("g", 0.667, 0.778, List("cp", "4", "5")),
-      ExpEvent("h", 0.778, 0.889, List("cp", "4", "5")),
-      ExpEvent("c#", 0.889, 1, List("cp", "4", "5"))
+      ExpEvent("c", 0.0, 0.333, List("hh", "4.0", "5.0")),
+      ExpEvent("f", 0.333, 0.667, List("sn", "5.0", "5.0")),
+      ExpEvent("g", 0.667, 0.778, List("cp", "4.0", "5.0")),
+      ExpEvent("h", 0.778, 0.889, List("cp", "4.0", "5.0")),
+      ExpEvent("c#", 0.889, 1, List("cp", "4.0", "5.0"))
     )
   }
 
