@@ -1,6 +1,6 @@
 package soundcode.mvu
 
-import soundcode.domain.{Sound, TextPosition}
+import soundcode.domain.*
 
 final case class AppModel(
     code: String = """|note("c4 a4").sound("piano")
@@ -8,5 +8,8 @@ final case class AppModel(
            |""".stripMargin.trim,
     positions: Set[TextPosition] = Set.empty,
     timelines: List[Seq[Sound]] = List.empty,
-    isPlaying: Boolean = false
+    isPlaying: Boolean = false,
+    currentBeat: Double = 0.0,
+
+    streams: List[Stream] = List.empty
 )
