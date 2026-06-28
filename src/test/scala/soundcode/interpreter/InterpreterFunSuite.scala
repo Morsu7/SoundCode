@@ -1,19 +1,20 @@
 package soundcode.interpreter
 
 import org.scalatest.funsuite.AnyFunSuite
-import fastparse._
+import fastparse.*
+import org.scalatest.Assertions.fail
 import soundcode.parser.SoundCodeParser
-import soundcode.domain.{Stream, TextPosition, AggregationPattern as AP, Effect, Sound}
+import soundcode.domain.{Effect, Sound, Stream, TextPosition, AggregationPattern as AP}
+
+def interpret(input: String): List[Stream] = {
+    val ast = new SoundCodeParser().parseProgram(input)
+    ast match {
+        case Parsed.Success(programAST, _) => Interpreter.interpret(programAST)
+        case f: Parsed.Failure => fail(s"Parsing failed: ${f.msg}")
+    }
+}
 
 class InterpreterFunSuite extends AnyFunSuite {
-
-    private def interpret(input: String): List[Stream] = {
-        val ast = new SoundCodeParser().parseProgram(input)
-        ast match {
-            case Parsed.Success(programAST, _) => Interpreter.interpret(programAST)
-            case f: Parsed.Failure => fail(s"Parsing failed: ${f.msg}")
-        }
-    }
 
     test("interpret a simple note block") {
         val streams = interpret("note(\"c# e3\")")

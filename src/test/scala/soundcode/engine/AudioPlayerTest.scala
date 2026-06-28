@@ -3,15 +3,15 @@ package soundcode.engine
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
 import soundcode.domain.*
-
 import soundcode.engine.Resolvable.given
+import soundcode.interpreter.interpret
 
 class AudioPlayerTest extends AnyFunSuite with Matchers {
 
   given Scheduler = SchedulerImpl
 
   test("bd hh sn hh") {
-    val player = setupPlayer(Patterns.`bd Hh Sn Hh`)
+    val player = setupPlayer(interpret("sound(\"bd hh sn hh\")"))
     val events = playCycle(player, 0)
 
     events should have size 4
@@ -24,17 +24,17 @@ class AudioPlayerTest extends AnyFunSuite with Matchers {
   }
 
   test("sound(\"bd hh\").note(\"c f g\")") {
-    val player = setupPlayer(Patterns.`bd Hh`, List(Patterns.`c f g`))
+    val player = setupPlayer(interpret("sound(\"bd hh\").note(\"c f g\")"))
     val events = playCycle(player, 0)
 
     events should contain theSameElementsInOrderAs List(
-      PlayedEvent("bd", 0L, 1000L, List("c")),
-      PlayedEvent("hh", 1000L, 1000L, List("f"))
+      PlayedEvent("bd", 0L, 1000L, List("c4")),
+      PlayedEvent("hh", 1000L, 1000L, List("f4"))
     )
   }
 
   test("bd hh sn hh [hh , sn < bd hh > ] (Due Cicli)") {
-    val player = setupPlayer(Patterns.`bd hh sn hh [hh , sn < bd hh > ]`)
+    val player = setupPlayer(interpret("sound(\"bd hh sn hh [hh , sn < bd hh > ]\")"))
 
     // --- CICLO 0 ---
     val cycle0 = playCycle(player, 0)
@@ -64,7 +64,7 @@ class AudioPlayerTest extends AnyFunSuite with Matchers {
 
   test("Scalabilità del tempo: cps = 1.0 (1 secondo per ciclo)") {
     val myCps = 1.0
-    val player = setupPlayer(Patterns.`bd Hh Sn Hh`, cps = myCps)
+    val player = setupPlayer(interpret("sound(\"bd hh sn hh\")"), cps = myCps)
     val events = playCycle(player, 0, myCps)
 
     events should have size 4
@@ -78,7 +78,7 @@ class AudioPlayerTest extends AnyFunSuite with Matchers {
 
   test("Scalabilità estrema: cps = 2.0 (Mezzo secondo per ciclo)") {
     val myCps = 2.0
-    val player = setupPlayer(Patterns.`bd Hh Sn Hh`, cps = myCps)
+    val player = setupPlayer(interpret("sound(\"bd hh sn hh\")"), cps = myCps)
     val events = playCycle(player, 0, myCps)
 
     events should contain theSameElementsInOrderAs List(
@@ -91,18 +91,18 @@ class AudioPlayerTest extends AnyFunSuite with Matchers {
 
   test("Inversione: base Note e estensione Sample (note(\"c f\").sound(\"bd\"))") {
     val pos = TextPosition(0, 0)
-    val player = setupPlayer(base = Patterns.`c f`, extensions = List(Patterns.`bd sn hh`))
+    val player = setupPlayer(interpret("note(\"c f\").sound(\"bd hh sn hh\")"))
     val events = playCycle(player, 0)
 
     events should contain theSameElementsInOrderAs List(
-      PlayedEvent("c", 0L, 1000L, List("bd")),
-      PlayedEvent("f", 1000L, 1000L, List("sn"))
+      PlayedEvent("c4", 0L, 1000L, List("bd")),
+      PlayedEvent("f4", 1000L, 1000L, List("sn"))
     )
   }
 
   test("Propagazione degli Effetti (Gain e Room)") {
     val pos = TextPosition(0, 0)
-    val player = setupPlayer(Patterns.`bd sn hh`, extensions = List(Patterns.`gain 3 5`, Patterns.`room 6`))
+    val player = setupPlayer(interpret("sound(\"bd sn hh\").gain(\"3 5\").room(\"6\")"))
     val events = playCycle(player, 0)
 
     events should contain theSameElementsInOrderAs List(
@@ -141,9 +141,9 @@ class AudioPlayerTest extends AnyFunSuite with Matchers {
     }
   }
 
-  def setupPlayer(base: Pattern, extensions: List[Pattern] = Nil, cps: Double = 0.5): TestableAudioPlayer = {
+  def setupPlayer(streams: List[Stream], cps: Double = 0.5): TestableAudioPlayer = {
     val player = new TestableAudioPlayer(cps)
-    player.updateTimeline(List(Stream(base, extensions)))
+    player.updateTimeline(streams)
     player
   }
 
