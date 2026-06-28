@@ -1,25 +1,48 @@
 package soundcode.domain
 
-type Samples = SampleInText | AggregationPattern[SampleInText]
-type Notes   = NoteInText   | AggregationPattern[NoteInText]
+opaque type Phase = Double
+object Phase:
+  def apply(value: Double): Phase = value
+  extension (p: Phase) def toDouble: Double = p
 
-case class Stream(
-  samplePattern: Option[Pattern[Samples]] = None,
-  notePattern: Option[Pattern[Notes]] = None,
-  effectPatterns: List[Pattern[Effect]] = List()
-)
 
-type Pattern[+E <: Element] = List[Seq[E]]
+opaque type AbsoluteTime = Long
+object AbsoluteTime:
+  def apply(value: Long): AbsoluteTime = value
+  extension (t: AbsoluteTime)
+    def toLong: Long = t
+    def +(other: Long): AbsoluteTime = AbsoluteTime(t + other)
+    def -(other: Long): AbsoluteTime = AbsoluteTime(t - other)
+    def <(other: AbsoluteTime): Boolean = t < other
+    def <=(other: AbsoluteTime): Boolean = t <= other
+
+opaque type Note = String
+object Note:
+  def apply(value: String): Note = value
+  extension (n: Note) def value: String = n
+
+opaque type Sample = String
+object Sample:
+  def apply(value: String): Sample = value
+  extension (s: Sample) def value: String = s
+
+case class TextPosition(startIndex: Int, endIndex: Int)
 
 sealed trait Element
 
-sealed trait Sound extends Element
-case class NoteInText(note: Note, position: TextPosition) extends Sound
-case class SampleInText(sample: Sample, position: TextPosition) extends Sound
+enum Sound extends Element:
+  case NoteInText(note: Note, position: TextPosition)
+  case SampleInText(sample: Sample, position: TextPosition)
 
-enum AggregationPattern[+E <: Element] extends Element:
-  case SubPattern(pattern: Pattern[E]) extends AggregationPattern[E]
-  case AlternationPattern(pattern: Pattern[E]) extends AggregationPattern[E]
+enum AggregationPattern extends Element:
+  case SubPattern(pattern: Pattern)
+  case AlternationPattern(pattern: Pattern)
+
+type Pattern = List[Seq[Element]]
+
+case class Stream(base: Pattern, extensions: List[Pattern])
+
+case class ScheduledEvent(startTime: Phase, endTime: Phase, element: Element, appliedExtensions: List[Element] = Nil)
 
 enum Effect extends Element:
   case Gain(value: Double)
@@ -36,8 +59,3 @@ enum Effect extends Element:
   case Late(value: Double)
   case Juxtaposition(transformations: List[Effect])
   case Offset(offset: Double, transformations: List[Effect])
-
-case class TextPosition(startIndex: Int, endIndex: Int)
-
-type Note = String
-type Sample = String
