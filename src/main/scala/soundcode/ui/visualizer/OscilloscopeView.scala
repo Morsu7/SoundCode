@@ -10,8 +10,7 @@ import scalafx.scene.paint.Color
 import scalafx.application.Platform
 import scalafx.animation.AnimationTimer
 
-final class OscilloscopeView(
-) extends CanvasAnimatedView("Oscilloscope"):
+final class OscilloscopeView extends CanvasAnimatedView:
 
   override protected def draw(
       gc: GraphicsContext,

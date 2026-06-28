@@ -9,6 +9,7 @@ import scalafx.geometry.Insets
 import scalafx.scene.paint.Color
 import scalafx.animation.AnimationTimer
 import scalafx.application.Platform
+import scalafx.scene.layout.Pane
 
 private case class FakeNote(
     pitch: Int,
@@ -33,9 +34,7 @@ trait AnimatedView:
   def play(): Unit
   def stop(): Unit
 
-abstract class CanvasAnimatedView(
-    title: String
-) extends AnimatedView:
+abstract class CanvasAnimatedView extends AnimatedView:
   // TODO: just mockup bpm for now, fetch from global state later
   protected val bpm = 120.0
   protected val pixelsPerBeat = 96.0
@@ -45,15 +44,33 @@ abstract class CanvasAnimatedView(
   protected val canvasHeight = 120.0
   protected val canvas = new Canvas(0, canvasHeight)
 
+  private val canvasPane = new Pane:
+    minWidth = 0
+    prefWidth = 0
+    maxWidth = Double.MaxValue
+    minHeight = canvasHeight
+    prefHeight = canvasHeight
+    maxHeight = canvasHeight
+    children = canvas
+
+  canvas.managed = false
+  canvas.height = canvasHeight
+
+  canvasPane.width.onChange {
+    val newWidth = canvasPane.width.value.max(0.0)
+
+    if canvas.width.value != newWidth then canvas.width = newWidth
+
+    redraw(lastBeat)
+  }
+
   private val view = new VBox:
     spacing = 4
     padding = Insets(config.horizontalPadding)
-    children = Seq(
-      new Label(title),
-      canvas
-    )
-
-  canvas.width <== view.width - config.horizontalPadding * 2
+    minWidth = 0
+    prefWidth = 0
+    maxWidth = Double.MaxValue
+    children = canvasPane
 
   override val root: Node = view
 
@@ -83,12 +100,10 @@ abstract class CanvasAnimatedView(
     val w = canvas.width.value
     val h = canvas.height.value
 
+    if w <= 0 || h <= 0 then return
+
     clear(gc, w, h)
     draw(gc, currentBeat, w, h)
-
-  canvas.width.onChange {
-    if canvas.width.value > 0 then redraw(lastBeat)
-  }
 
   Platform.runLater {
     redraw(0.0)
