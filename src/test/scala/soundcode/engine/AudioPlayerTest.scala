@@ -8,8 +8,6 @@ import soundcode.interpreter.interpret
 
 class AudioPlayerTest extends AnyFunSuite with Matchers {
 
-  given Scheduler = SchedulerImpl
-
   test("bd hh sn hh") {
     val player = setupPlayer(interpret("sound(\"bd hh sn hh\")"))
     val events = playCycle(player, 0)
@@ -49,6 +47,7 @@ class AudioPlayerTest extends AnyFunSuite with Matchers {
       PlayedEvent("bd", 1800L, 200L)
     )
 
+    // --- CICLO 1 ---
     val cycle1 = playCycle(player, 1)
     cycle1 should have size 7
     cycle1 should contain theSameElementsAs List(
@@ -90,7 +89,6 @@ class AudioPlayerTest extends AnyFunSuite with Matchers {
   }
 
   test("Inversione: base Note e estensione Sample (note(\"c f\").sound(\"bd\"))") {
-    val pos = TextPosition(0, 0)
     val player = setupPlayer(interpret("note(\"c f\").sound(\"bd hh sn hh\")"))
     val events = playCycle(player, 0)
 
@@ -101,7 +99,6 @@ class AudioPlayerTest extends AnyFunSuite with Matchers {
   }
 
   test("Propagazione degli Effetti (Gain e Room)") {
-    val pos = TextPosition(0, 0)
     val player = setupPlayer(interpret("sound(\"bd sn hh\").gain(\"3 5\").room(\"6\")"))
     val events = playCycle(player, 0)
 
@@ -114,7 +111,8 @@ class AudioPlayerTest extends AnyFunSuite with Matchers {
 
   case class PlayedEvent(name: String, triggerTimeMs: Long, durationMs: Long, extensions: List[String] = Nil)
 
-  class TestableAudioPlayer(cps: Double)(using Scheduler, Resolvable[Pattern]) extends AudioPlayer(cps) {
+  // Rimosso (using Scheduler, Resolvable) perché il Player non ne ha più bisogno!
+  class TestableAudioPlayer(cps: Double) extends AudioPlayer(cps) {
     var playedEvents: List[PlayedEvent] = Nil
     var simulatedNow: AbsoluteTime = AbsoluteTime(0L)
 
@@ -124,7 +122,6 @@ class AudioPlayerTest extends AnyFunSuite with Matchers {
     }
 
     override protected def triggerSound(element: Element, durationMs: Long, extensions: List[Element]): Unit = {
-      // Usiamo .value per estrarre la stringa dall'Opaque Type
       val name = element match {
         case Sound.SampleInText(s, _) => s.value
         case Sound.NoteInText(n, _) => n.value
@@ -143,7 +140,9 @@ class AudioPlayerTest extends AnyFunSuite with Matchers {
 
   def setupPlayer(streams: List[Stream], cps: Double = 0.5): TestableAudioPlayer = {
     val player = new TestableAudioPlayer(cps)
-    player.updateTimeline(streams)
+    // Generiamo lo stream infinito tramite il nuovo Scheduler
+    val playerStream = SchedulerImpl.generateInfiniteTimeline(streams)
+    player.updateTimeline(playerStream)
     player
   }
 
