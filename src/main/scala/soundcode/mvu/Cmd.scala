@@ -16,12 +16,17 @@ object Cmd:
 
   case class ParseAndInterpret(code: String) extends Cmd:
     override def run(dispatch: Msg => Unit): Unit =
-      var parser = new SoundCodeParser
+      val parser = new SoundCodeParser
+      
       val (streams, errors) = parser.parseProgram(code) match {
-        case Parsed.Success(programAST, _) => 
+        case Right(programAST) => {
+          print(f"Parsing succeeded. AST: $programAST\n")
+        
           (Interpreter.interpret(programAST), None)
-        case f: Parsed.Failure => 
-          (List.empty[Stream], Some(s"Parsing failed: ${f.msg}"))
+        }
+          
+        case Left(errorMsg) => 
+          (List.empty[Stream], Some(s"Parsing failed:\n$errorMsg"))
       }
       
       dispatch(Msg.CodeParsed(streams, errors))

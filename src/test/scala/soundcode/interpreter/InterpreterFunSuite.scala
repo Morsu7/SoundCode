@@ -9,8 +9,8 @@ import soundcode.domain.{Effect, Sound, Stream, TextPosition, AggregationPattern
 def interpret(input: String): List[Stream] = {
     val ast = new SoundCodeParser().parseProgram(input)
     ast match {
-        case Parsed.Success(programAST, _) => Interpreter.interpret(programAST)
-        case f: Parsed.Failure => fail(s"Parsing failed: ${f.msg}")
+        case Right(programAST) => Interpreter.interpret(programAST)
+        case Left(errorMsg) => fail(s"Parsing failed: $errorMsg")
     }
 }
 

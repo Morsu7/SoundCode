@@ -4,14 +4,19 @@ import fastparse._, NoWhitespace._
 import soundcode.parser.AST._
 import soundcode.parser.AST.Transformations._
 
+import soundcode.utils.parser.formatParseError
+
 class SoundCodeParser {
 
   /**
     Entrypoint for parsing a SoundCode program
     It takes a string input and returns a Parsed[ProgramAST] result, which can be either a success or a failure.
   **/
-  def parseProgram(input: String): Parsed[ProgramAST] = {
-    parse(input, prog(using _)) 
+  def parseProgram(input: String): Either[String, ProgramAST] = {
+    parse(input, prog(using _)) match {
+      case Parsed.Success(ast, _) => Right(ast)
+      case f: Parsed.Failure      => Left(formatParseError(input, f))
+    }
   }
 
   private def prog(using P[?]): P[ProgramAST] = 
@@ -19,7 +24,7 @@ class SoundCodeParser {
 
   // A "stream" is a generative block optionally chained with generative or transformation blocks
   private def streamBlock(using P[?]): P[StreamBlock] =
-    P( generativeBlock ~ ( "." ~ extensionBlock ).rep ).map {
+    P( generativeBlock ~ ( "." ~/ extensionBlock ).rep ).map {
       case (baseBlock, extensionSeq) => StreamBlock(baseBlock, extensionSeq.toList)
     }
 
@@ -30,13 +35,13 @@ class SoundCodeParser {
     P( generativeBlock.map(GenerativeExtensionBlock.apply) | transformationBlock.map(TransformationExtensionBlock.apply) )
 
   private def noteBlock(using P[?]): P[NoteBlock] =
-    P( "note" ~ "(" ~ ws ~ wrappedPattern(noteAtom) ~ ws ~ ")" ).map( NoteBlock.apply )
+    P( "note" ~/ "(" ~ ws ~ wrappedPattern(noteAtom) ~ ws ~ ")" ).map( NoteBlock.apply )
 
   private def soundBlock(using P[?]): P[SoundBlock] = 
-    P( "sound" ~ "(" ~ ws ~ wrappedPattern(sampleAtom) ~ ws ~ ")" ).map(SoundBlock.apply)
+    P( "sound" ~/ "(" ~ ws ~ wrappedPattern(sampleAtom) ~ ws ~ ")" ).map(SoundBlock.apply)
 
   private def wrappedPattern[T <: Atom](atom: => P[T])(using P[?]): P[Pattern[T]] =
-    P( "\"" ~ ws ~ pattern(atom) ~ ws ~ "\"" ) // Tollera "   hh   "
+    P( quote ~/ ws ~ pattern(atom) ~ ws ~ quote )
 
   private def pattern[T <: Atom](atom: => P[T])(using P[?]): P[Pattern[T]] =
     P( sequence(atom).rep(1, sep = P( ws ~ "," ~ ws )) ).map(seq => Pattern(seq.toList))
@@ -46,7 +51,7 @@ class SoundCodeParser {
     P( element(atom).rep(1, sep = P( ws )) ).map(seq => Sequence(seq.toList))
   
   private def element[T <: Atom](atom: => P[T])(using P[?]): P[Element[T]] = P(
-    baseElement(atom) ~ (StringIn("*", "/").! ~ configAtom).?
+    baseElement(atom) ~ (StringIn("*", "/").! ~/ configAtom).?
   ).map {
     case (base, Some((opStr, factor))) => 
       SpeedModifiedElement(base, opStr == "*", factor)
@@ -63,10 +68,10 @@ class SoundCodeParser {
     )
   
   private def subPattern[T <: Atom](atom: => P[T])(using P[?]): P[SubPatternElement[T]] =
-    P( "[" ~ ws ~ pattern(atom) ~ ws ~ "]" ).map(SubPatternElement.apply)
+    P( "[" ~/ ws ~ pattern(atom) ~ ws ~ "]" ).map(SubPatternElement.apply)
 
   private def alternationPattern[T <: Atom](atom: => P[T])(using P[?]): P[AlternationElement[T]] =
-    P( "<" ~ ws ~ pattern(atom) ~ ws ~ ">" ).map(AlternationElement.apply)
+    P( "<" ~/ ws ~ pattern(atom) ~ ws ~ ">" ).map(AlternationElement.apply)
 
   /*
     ---------- TRANS PARSER ----------
@@ -76,14 +81,13 @@ class SoundCodeParser {
   private def inlineTransformation(using P[?]): P[TransformationBlock] = P(
     gain | pan | room | delay | lowPassFilter | highPassFilter | 
     fastForward | slowMotion | early | late | reverse | repetition
-  )
+  ).opaque("an inline transformation")
 
   private def transformationBlock(using P[?]): P[TransformationBlock] =
   P(
     inlineTransformation 
       | offset 
       | juxtaposition
-      | unknownExtension
   )
 
   private def unknownExtension(using P[?]): P[Unknown] = P(
@@ -92,50 +96,50 @@ class SoundCodeParser {
   
   private def gain(using P[?]): P[Gain] =
 
-    P( "gain" ~ "(" ~ ws ~ wrappedPattern(configAtom) ~ ws ~ ")" ).map(Gain.apply)
+    P( "gain" ~/ "(" ~ ws ~ wrappedPattern(configAtom) ~ ws ~ ")" ).map(Gain.apply)
   private def pan(using P[?]): P[Pan] =
-    P( "pan" ~ "(" ~ ws ~ wrappedPattern(configAtom) ~ ws ~ ")" ).map(Pan.apply)
+    P( "pan" ~/ "(" ~ ws ~ wrappedPattern(configAtom) ~ ws ~ ")" ).map(Pan.apply)
   
   private def room(using P[?]): P[Room] =
-    P( "room" ~ "(" ~ ws ~ wrappedPattern(configAtom) ~ ws ~ ")" ).map(Room.apply)
+    P( "room" ~/ "(" ~ ws ~ wrappedPattern(configAtom) ~ ws ~ ")" ).map(Room.apply)
 
   private def delay(using P[?]): P[Delay] =
-    P( "delay" ~ "(" ~ ws ~ wrappedPattern(configAtom) ~ ws ~ ")" ).map(Delay.apply)
+    P( "delay" ~/ "(" ~ ws ~ wrappedPattern(configAtom) ~ ws ~ ")" ).map(Delay.apply)
 
   private def lowPassFilter(using P[?]): P[LowPassFilter] =
-    P( "lpf" ~ "(" ~ ws ~ wrappedPattern(configAtom) ~ ws ~ ")" ).map(LowPassFilter.apply)
+    P( "lpf" ~/ "(" ~ ws ~ wrappedPattern(configAtom) ~ ws ~ ")" ).map(LowPassFilter.apply)
 
   private def highPassFilter(using P[?]): P[HighPassFilter] =
-    P( "hpf" ~ "(" ~ ws ~ wrappedPattern(configAtom) ~ ws ~ ")" ).map(HighPassFilter.apply)
+    P( "hpf" ~/ "(" ~ ws ~ wrappedPattern(configAtom) ~ ws ~ ")" ).map(HighPassFilter.apply)
 
   private def fastForward(using P[?]): P[FastForward] =
-    P( "fast" ~ "(" ~ ws ~ wrappedPattern(configAtom) ~ ws ~ ")" ).map(FastForward.apply)
+    P( "fast" ~/ "(" ~ ws ~ wrappedPattern(configAtom) ~ ws ~ ")" ).map(FastForward.apply)
 
   private def slowMotion(using P[?]): P[SlowMotion] =
-    P( "slow" ~ "(" ~ ws ~ wrappedPattern(configAtom) ~ ws ~ ")" ).map(SlowMotion.apply)
+    P( "slow" ~/ "(" ~ ws ~ wrappedPattern(configAtom) ~ ws ~ ")" ).map(SlowMotion.apply)
 
   private def early(using P[?]): P[Early] =
-    P( "early" ~ "(" ~ ws ~ wrappedPattern(configAtom) ~ ws ~ ")" ).map(Early.apply)
+    P( "early" ~/ "(" ~ ws ~ wrappedPattern(configAtom) ~ ws ~ ")" ).map(Early.apply)
 
   private def late(using P[?]): P[Late] =
-    P( "late" ~ "(" ~ ws ~ wrappedPattern(configAtom) ~ ws ~ ")" ).map(Late.apply)
+    P( "late" ~/ "(" ~ ws ~ wrappedPattern(configAtom) ~ ws ~ ")" ).map(Late.apply)
 
   private def reverse(using P[?]): P[Reverse] =
     P( "rev()" ).map(_ => Reverse())
 
   private def repetition(using P[?]): P[Repetition] =
-    P( "ply" ~ "(" ~ ws ~ wrappedPattern(configAtom) ~ ws ~ ")" ).map(Repetition.apply)
+    P( "ply" ~/ "(" ~ ws ~ wrappedPattern(configAtom) ~ ws ~ ")" ).map(Repetition.apply)
 
   private def juxtaposition(using P[?]): P[Juxtaposition] = 
     P( 
-      "jux" ~ "(" ~ ws ~ 
+      "jux" ~/ "(" ~ ws ~ 
       inlineTransformation.rep(1, sep = P(ws ~ "," ~ ws)) ~ 
       ws ~ ")" 
     ).map(transSeq => Juxtaposition(transSeq.toList))
 
   private def offset(using P[?]): P[Offset] = 
     P( 
-      "off" ~ "(" ~ ws ~ wrappedPattern(configAtom) ~ ws ~ "," ~ ws ~ 
+      "off" ~/ "(" ~ ws ~ wrappedPattern(configAtom) ~ ws ~ "," ~/ ws ~ 
       inlineTransformation.rep(1, sep = CharsWhileIn(" \t", 1)) ~ 
       ws ~ ")" 
     ).map { case (offsetPattern, transSeq) => 
@@ -156,13 +160,16 @@ class SoundCodeParser {
     val cleanAccidental = accidentalOpt.map(a => if (a == "s") "#" else a)
     val octave = octaveOpt.map(_.toInt).getOrElse(4)
     Note(pitch.toLowerCase, cleanAccidental, octave, startIndex, endIndex)
-  }
+  }.opaque("Musical Note (e.g., c4, f#5, Bb3)")
+
   // A sample is a string of lowercase letters and numbers
   private def sampleAtom(using P[?]): P[Sample] =
-    P( Index ~ CharsWhileIn("a-z0-9").! ~ Index ).map { case (startIndex, value, endIndex) => Sample(value, startIndex, endIndex) }
+    P( Index ~ CharsWhileIn("a-z0-9").! ~ Index ).map { case (startIndex, value, endIndex) => Sample(value, startIndex, endIndex) }.opaque("Audio Sample Identifier (alphanumeric lowercase)")
 
   private def configAtom(using P[?]): P[Config] =
-    P( Index ~ (CharIn("+\\-").? ~ CharsWhileIn("0-9") ~ ("." ~ CharsWhileIn("0-9")).?).! ~ Index ).map { case (startIndex, value, endIndex) => Config(value.toDouble, startIndex, endIndex) }
+    P( Index ~ (CharIn("+\\-").? ~ CharsWhileIn("0-9") ~ ("." ~ CharsWhileIn("0-9")).?).! ~ Index ).map { 
+      case (startIndex, value, endIndex) => Config(value.toDouble, startIndex, endIndex) 
+    }.opaque("Numeric Value (integer or decimal)")
 
   
   /*
@@ -173,4 +180,7 @@ class SoundCodeParser {
 
   // parser for whitespace (spaces and tabs)
   private def ws(using P[?]): P[Unit] = P( CharsWhileIn(" \t", 0) )
+
+  // parser for quote character
+  private def quote(using P[?]): P[Unit] = P( "\"" ).opaque("quotes (\")")
 }
