@@ -28,14 +28,36 @@ object Resolvable:
     def resolve(element: Element, start: Phase, end: Phase, nCycle: Int): List[ScheduledEvent] =
       element match
         case s: Sound => List(ScheduledEvent(start, end, s))
-        case e: Effect => List(ScheduledEvent(start, end, e))
-        case AggregationPattern.SubPattern(sub) =>
+        case e: AudioEffect => List(ScheduledEvent(start, end, e))
+        case RecursivePattern.SubPattern(sub) =>
           summon[Resolvable[Pattern]].resolve(sub, start, end, nCycle)
-        case AggregationPattern.AlternationPattern(alt) =>
+        case RecursivePattern.AlternationPattern(alt) =>
           alt.flatMap { layer =>
             if layer.isEmpty then Nil
             else
               val choice = layer(nCycle % layer.size)
               val tempPattern = List(Seq(choice))
-              summon[Resolvable[Pattern]].resolve(tempPattern, start, end, nCycle)
+              //summon[Resolvable[Pattern]].resolve(tempPattern, start, end, nCycle)
+              summon[Resolvable[Pattern]].resolve(tempPattern, start, end, nCycle / layer.size)
           }
+        case t: RecursivePattern.Transform =>
+          summon[Resolvable[RecursivePattern.Transform]].resolve(t, start, end, nCycle)
+
+  given transformResolvable(using patRes: Resolvable[Pattern]): Resolvable[RecursivePattern.Transform] with
+    def resolve(node: RecursivePattern.Transform, start: Phase, end: Phase, nCycle: Int): List[ScheduledEvent] =
+      val baseEvents = patRes.resolve(node.pattern, start, end, nCycle)
+
+      node.modifier match
+        case PatternModifier.Reverse => ???
+
+        case PatternModifier.FastForward(factor) => ???
+
+        case PatternModifier.SlowMotion(factor) => ???
+
+        case PatternModifier.Early(offset) => ???
+
+        case PatternModifier.Late(offset) => ???
+
+        case PatternModifier.Delay(_) => ???
+
+        case PatternModifier.Repetition(_) => ???

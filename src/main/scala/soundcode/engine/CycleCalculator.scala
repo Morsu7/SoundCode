@@ -10,8 +10,8 @@ object CycleCalculator:
   private def lcm(a: Int, b: Int): Int = if (a == 0 || b == 0) 1 else (a * b).abs / gcd(a, b)
 
   def lengthOf(element: Element): Int = element match
-    case AggregationPattern.SubPattern(sub) => lengthOf(sub)
-    case AggregationPattern.AlternationPattern(alt) =>
+    case RecursivePattern.SubPattern(sub) => lengthOf(sub)
+    case RecursivePattern.AlternationPattern(alt) =>
       // alt è List[Layer], calcoliamo le scelte (layer.size) per ogni traccia parallela
       alt.map { layer =>
         val choices = layer.size
@@ -23,7 +23,7 @@ object CycleCalculator:
   def lengthOf(pattern: Pattern): Int =
     pattern.map(layer => layer.map(lengthOf).foldLeft(1)(lcm)).foldLeft(1)(lcm)
 
-  def lengthOf(stream: Stream): Int =
-    val baseLen = lengthOf(stream.base)
-    val extLens = stream.extensions.map(lengthOf)
+  def lengthOf(track: Track): Int =
+    val baseLen = lengthOf(track.base)
+    val extLens = track.extensions.map(lengthOf)
     (baseLen :: extLens).reduce(lcm)

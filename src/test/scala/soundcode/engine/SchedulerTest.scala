@@ -8,8 +8,8 @@ import soundcode.engine.Resolvable.given
 
 class SchedulerTest extends AnyFunSuite with Matchers {
 
-  def resolve(streams: List[Stream], cycle: Int): List[ExpEvent] =
-    SchedulerImpl.generateInfiniteTimeline(streams)
+  def resolve(tracks: List[Track], cycle: Int): List[ExpEvent] =
+    SchedulerImpl.generateInfiniteTimeline(tracks)
       .dropWhile(_.startTime.toDouble < cycle.toDouble)
       .takeWhile(_.startTime.toDouble < (cycle.toDouble + 1.0))
       .map(_.toExp)
@@ -111,6 +111,148 @@ class SchedulerTest extends AnyFunSuite with Matchers {
       ExpEvent("bd", 2.0, 3.0)
     )
   }
+
+
+  test("generateBoundedTimelines: Poliritmia tra Base (2) ed Estensione (3) -> MCM = 6 cicli") {
+    val streams = interpret("sound(\"<bd cp>\").note(\"<c f g>\")")
+    val viewData = SchedulerImpl.generateBoundedTimelines(streams)
+
+    viewData should have size 1
+    val trackTimeline = viewData.head
+
+    trackTimeline.last.endTime.toDouble shouldBe 6.0
+
+    // Verifichiamo l'incrocio sfalsato di note e suoni!
+    trackTimeline.map(_.toExp) should contain theSameElementsInOrderAs List(
+      ExpEvent("bd", 0.0, 1.0, List("c4")), // Ciclo 0
+      ExpEvent("cp", 1.0, 2.0, List("f4")), // Ciclo 1
+      ExpEvent("bd", 2.0, 3.0, List("g4")), // Ciclo 2
+      ExpEvent("cp", 3.0, 4.0, List("c4")), // Ciclo 3 (nota riparte)
+      ExpEvent("bd", 4.0, 5.0, List("f4")), // Ciclo 4
+      ExpEvent("cp", 5.0, 6.0, List("g4")) // Ciclo 5
+    )
+  }
+
+  test("generateBoundedTimelines: Alternanze annidate <bd <hh sn>> durano 4 cicli") {
+    val streams = interpret("sound(\"<bd <hh sn>>\")")
+    val viewData = SchedulerImpl.generateBoundedTimelines(streams)
+
+    viewData should have size 1
+    val trackTimeline = viewData.head
+
+    trackTimeline.last.endTime.toDouble shouldBe 4.0
+
+    trackTimeline.map(_.toExp) should contain theSameElementsInOrderAs List(
+      ExpEvent("bd", 0.0, 1.0),
+      ExpEvent("hh", 1.0, 2.0),
+      ExpEvent("bd", 2.0, 3.0),
+      ExpEvent("sn", 3.0, 4.0)
+    )
+  }
+
+  test("generateBoundedTimelines: Multi-estensioni con lunghezze 1, 2 e 3 -> MCM = 6 cicli") {
+    val streams = interpret("sound(\"bd\").note(\"<c f>\").gain(\"<3 4 5>\")")
+    val viewData = SchedulerImpl.generateBoundedTimelines(streams)
+
+    viewData should have size 1
+    val trackTimeline = viewData.head
+
+    trackTimeline.last.endTime.toDouble shouldBe 6.0
+
+    trackTimeline.map(_.toExp) should contain theSameElementsInOrderAs List(
+      ExpEvent("bd", 0.0, 1.0, List("c4", "3.0")),
+      ExpEvent("bd", 1.0, 2.0, List("f4", "4.0")),
+      ExpEvent("bd", 2.0, 3.0, List("c4", "5.0")),
+      ExpEvent("bd", 3.0, 4.0, List("f4", "3.0")),
+      ExpEvent("bd", 4.0, 5.0, List("c4", "4.0")),
+      ExpEvent("bd", 5.0, 6.0, List("f4", "5.0"))
+    )
+  }
+
+  test("generateBoundedTimelines: Le estensioni sub-ciclo non alterano il loop totale") {
+    val streams = interpret("sound(\"<bd cp>\").note(\"c f g\")")
+    val viewData = SchedulerImpl.generateBoundedTimelines(streams)
+
+    viewData should have size 1
+    val trackTimeline = viewData.head
+
+    trackTimeline.last.endTime.toDouble shouldBe 2.0
+
+    trackTimeline.map(_.toExp) should contain theSameElementsInOrderAs List(
+      ExpEvent("bd", 0.0, 1.0, List("c4")),
+      ExpEvent("cp", 1.0, 2.0, List("c4"))
+    )
+  }
+
+  test("Stress Test 1: Tre livelli di annidamento <bd <hh <sn cp>>> (MCM = 8)") {
+    val streams = interpret("sound(\"<bd <hh <sn cp>>>\")")
+    val viewData = SchedulerImpl.generateBoundedTimelines(streams)
+
+    viewData should have size 1
+    val trackTimeline = viewData.head
+
+    trackTimeline.last.endTime.toDouble shouldBe 8.0
+
+    trackTimeline.map(_.toExp) should contain theSameElementsInOrderAs List(
+      ExpEvent("bd", 0.0, 1.0),
+      ExpEvent("hh", 1.0, 2.0),
+      ExpEvent("bd", 2.0, 3.0),
+      ExpEvent("sn", 3.0, 4.0),
+      ExpEvent("bd", 4.0, 5.0),
+      ExpEvent("hh", 5.0, 6.0),
+      ExpEvent("bd", 6.0, 7.0),
+      ExpEvent("cp", 7.0, 8.0)
+    )
+  }
+
+  test("Stress Test 2: Annidamento asimmetrico estremo <bd cp <hh <sn rim clap>>> (MCM = 18)") {
+    val streams = interpret("sound(\"<bd cp <hh <sn rim clap>>>\")")
+    val viewData = SchedulerImpl.generateBoundedTimelines(streams)
+
+    viewData should have size 1
+    val trackTimeline = viewData.head
+
+    trackTimeline.last.endTime.toDouble shouldBe 18.0
+
+    // Verifichiamo a campione alcuni punti critici per assicurarci che la matematica regga:
+    val events = trackTimeline.map(_.toExp).toVector
+
+    events(0).element shouldBe "bd" // Ciclo 0
+    events(1).element shouldBe "cp" // Ciclo 1
+    events(2).element shouldBe "hh" // Ciclo 2 (terza opzione esterna, prima opzione media)
+
+    events(3).element shouldBe "bd" // Ciclo 3
+    events(4).element shouldBe "cp" // Ciclo 4
+    events(5).element shouldBe "sn" // Ciclo 5 (terza opz. est, seconda opz. med, prima opz. int)
+
+    events(17).element shouldBe "clap" // Ciclo 17: Ultimo giro prima di ricominciare tutto!
+  }
+
+  test("Stress Test 3: Scontro di numeri primi tra base ed estensioni (2, 3, 5 -> MCM = 30)") {
+    // Base: 2 cicli
+    // Note: 3 cicli
+    // Gain: 5 cicli
+    val streams = interpret("sound(\"<bd cp>\").note(\"<c f g>\").gain(\"<1 2 3 4 5>\")")
+    val viewData = SchedulerImpl.generateBoundedTimelines(streams)
+
+    viewData should have size 1
+    val trackTimeline = viewData.head
+
+    // Il calcolo deve risultare in esattamente 30 cicli!
+    trackTimeline.last.endTime.toDouble shouldBe 30.0
+    trackTimeline should have size 30
+
+    val events = trackTimeline.map(_.toExp).toVector
+
+    // Ciclo 0: (bd, c, 1) -> indici: 0%2, 0%3, 0%5
+    events(0) shouldBe ExpEvent("bd", 0.0, 1.0, List("c4", "1.0"))
+
+    // Ciclo 14: indici -> 14%2=0 (bd), 14%3=2 (g), 14%5=4 (5)
+    events(14) shouldBe ExpEvent("bd", 14.0, 15.0, List("g4", "5.0"))
+
+    // Ciclo 29: indici -> 29%2=1 (cp), 29%3=2 (g), 29%5=4 (5)
+    events(29) shouldBe ExpEvent("cp", 29.0, 30.0, List("g4", "5.0"))
+  }
 }
 
 case class ExpEvent(element: String, start: Double, end: Double, extensions: List[String] = Nil)
@@ -121,8 +263,8 @@ extension (e: ScheduledEvent)
     val exts = e.appliedExtensions.map {
       case Sound.NoteInText(n, _) => n.value
       case Sound.SampleInText(s, _) => s.value
-      case Effect.Gain(v) => v.toString
-      case Effect.Room(v) => v.toString
+      case AudioEffect.Gain(v) => v.toString
+      case AudioEffect.Room(v) => v.toString
       case _ => "unknown"
     }
     val name = e.element match {

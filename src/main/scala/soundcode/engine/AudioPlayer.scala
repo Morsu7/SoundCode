@@ -2,16 +2,14 @@ package soundcode.engine
 
 import soundcode.domain.*
 
-class AudioPlayer(val cps: Double = 0.5) {
+class AudioPlayer(val tempo: Tempo) { // Passiamo Tempo invece del double cps
 
-  private val cycleDurationMs: Double = 1000.0 / cps
   private val loopResolutionMs = 1L
 
   @volatile private var isRunning = false
   private var thread: Option[Thread] = None
 
   @volatile private var eventStream: LazyList[ScheduledEvent] = LazyList.empty
-
   @volatile private var firstTickTimeMs: Option[Long] = None
 
   def updateTimeline(stream: LazyList[ScheduledEvent]): Unit = this.eventStream = stream; this.firstTickTimeMs = None
@@ -35,18 +33,23 @@ class AudioPlayer(val cps: Double = 0.5) {
 
     while (eventStream.nonEmpty) {
       val nextEvent = eventStream.head
-      val expectedTriggerMs = firstTickTimeMs.get + (nextEvent.startTime.toDouble * cycleDurationMs).toLong
-
+      val expectedTriggerMs = firstTickTimeMs.get + tempo.offsetMs(nextEvent.startTime)
       if (now.toLong >= expectedTriggerMs) {
         eventStream = eventStream.tail
-        val durationMs = Math.round((nextEvent.endTime.toDouble - nextEvent.startTime.toDouble) * cycleDurationMs)
+        val durationMs = tempo.durationMs(nextEvent.startTime, nextEvent.endTime)
         triggerSound(nextEvent.element, durationMs, nextEvent.appliedExtensions)
       } else {
-        // L'evento futuro non è ancora pronto, usciamo dal tick
         return
       }
     }
   }
 
-  protected def triggerSound(element: Element, durationMs: Long, extensions: List[Element]): Unit = {}
+  protected def triggerSound(element: Element, durationMs: Long, extensions: List[Element]): Unit = {
+    element match {
+      case Sound.Rest(_) => ???
+      case Sound.SampleInText(s, _) => ???
+      case soundcode.domain.Sound.NoteInText(_, _) => ???
+      case _ => ???
+    }
+  }
 }

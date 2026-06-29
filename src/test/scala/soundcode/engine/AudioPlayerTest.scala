@@ -111,8 +111,7 @@ class AudioPlayerTest extends AnyFunSuite with Matchers {
 
   case class PlayedEvent(name: String, triggerTimeMs: Long, durationMs: Long, extensions: List[String] = Nil)
 
-  // Rimosso (using Scheduler, Resolvable) perché il Player non ne ha più bisogno!
-  class TestableAudioPlayer(cps: Double) extends AudioPlayer(cps) {
+  class TestableAudioPlayer(tempo: Tempo) extends AudioPlayer(tempo) {
     var playedEvents: List[PlayedEvent] = Nil
     var simulatedNow: AbsoluteTime = AbsoluteTime(0L)
 
@@ -130,29 +129,32 @@ class AudioPlayerTest extends AnyFunSuite with Matchers {
       val extNames = extensions.map {
         case Sound.SampleInText(s, _) => s.value
         case Sound.NoteInText(n, _) => n.value
-        case Effect.Gain(v) => s"gain($v)"
-        case Effect.Room(v) => s"room($v)"
+        case AudioEffect.Gain(v) => s"gain($v)"
+        case AudioEffect.Room(v) => s"room($v)"
         case _ => "unknown"
       }
       playedEvents = playedEvents :+ PlayedEvent(name, simulatedNow.toLong, durationMs, extNames)
     }
   }
 
-  def setupPlayer(streams: List[Stream], cps: Double = 0.5): TestableAudioPlayer = {
-    val player = new TestableAudioPlayer(cps)
-    // Generiamo lo stream infinito tramite il nuovo Scheduler
-    val playerStream = SchedulerImpl.generateInfiniteTimeline(streams)
+  def setupPlayer(tracks: List[Track], cps: Double = 0.5): TestableAudioPlayer = {
+    val player = new TestableAudioPlayer(Tempo(cps))
+    val playerStream = SchedulerImpl.generateInfiniteTimeline(tracks)
     player.updateTimeline(playerStream)
     player
   }
 
   def playCycle(player: TestableAudioPlayer, cycleIndex: Int, cps: Double = 0.5): List[PlayedEvent] = {
-    val cycleDurationMs = (1000.0 / cps).toLong
+    val tempo = Tempo(cps)
+    val cycleDurationMs = tempo.cycleDurationMs.toLong
+
     val startMs = cycleIndex * cycleDurationMs
     val endMs = startMs + cycleDurationMs - 1
+
     for (t <- startMs to endMs) {
       player.tick(AbsoluteTime(t))
     }
+
     val events = player.playedEvents
     player.playedEvents = Nil
     events

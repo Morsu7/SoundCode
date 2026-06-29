@@ -3,28 +3,28 @@ package soundcode.engine
 import soundcode.domain.*
 
 trait Scheduler:
-  def generateBoundedTimelines(streams: List[Stream])(using res: Resolvable[Pattern]): List[Seq[ScheduledEvent]]
-  def generateInfiniteTimeline(streams: List[Stream])(using res: Resolvable[Pattern]): LazyList[ScheduledEvent]
+  def generateBoundedTimelines(tracks: List[Track])(using res: Resolvable[Pattern]): List[Seq[ScheduledEvent]]
+  def generateInfiniteTimeline(tracks: List[Track])(using res: Resolvable[Pattern]): LazyList[ScheduledEvent]
 
 object SchedulerImpl extends Scheduler:
 
-  def generateBoundedTimelines(streams: List[Stream])(using res: Resolvable[Pattern]): List[Seq[ScheduledEvent]] =
-    streams.map { stream =>
+  def generateBoundedTimelines(tracks: List[Track])(using res: Resolvable[Pattern]): List[Seq[ScheduledEvent]] =
+    tracks.map { stream =>
       val totalCycles = CycleCalculator.lengthOf(stream)
       (0 until totalCycles).flatMap(n => resolveCycle(List(stream), n)).toList
     }
 
-  def generateInfiniteTimeline(streams: List[Stream])(using res: Resolvable[Pattern]): LazyList[ScheduledEvent] =
+  def generateInfiniteTimeline(tracks: List[Track])(using res: Resolvable[Pattern]): LazyList[ScheduledEvent] =
     def loop(nCycle: Int): LazyList[ScheduledEvent] =
-      val sortedCycleEvents = resolveCycle(streams, nCycle).sortBy(_.startTime.toDouble)
+      val sortedCycleEvents = resolveCycle(tracks, nCycle).sortBy(_.startTime.toDouble)
       LazyList.from(sortedCycleEvents) #::: loop(nCycle + 1)
     loop(0)
 
-  private def resolveCycle(streams: List[Stream], nCycle: Int)(using res: Resolvable[Pattern]): List[ScheduledEvent] = {
+  private def resolveCycle(tracks: List[Track], nCycle: Int)(using res: Resolvable[Pattern]): List[ScheduledEvent] = {
     val startPhase = Phase(nCycle.toDouble)
     val endPhase = Phase(nCycle.toDouble + 1.0)
 
-    streams.flatMap { stream =>
+    tracks.flatMap { stream =>
       val baseEvents = res.resolve(stream.base, startPhase, endPhase, nCycle)
       baseEvents.map { baseEvent =>
         val sampleTime = baseEvent.startTime.toDouble
