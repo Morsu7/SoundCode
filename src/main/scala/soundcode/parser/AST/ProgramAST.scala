@@ -33,14 +33,14 @@ case class SpeedModifiedElement[A <: Atom](
 ) extends Element[A]
 
 sealed trait Atom
-case class Note(name: String, accidental: Option[String], octave: Int) extends Atom {
+case class Note(name: String, accidental: Option[String], octave: Int, startIndex: Int, endIndex: Int) extends Atom {
   override def toString: String = {
     val accStr = accidental.getOrElse("")
     s"$name$accStr$octave"
   }
 }
-case class Sample(value: String) extends Atom
-case class Config(value: Double) extends Atom // Numerical values for transformations
+case class Sample(value: String, startIndex: Int, endIndex: Int) extends Atom
+case class Config(value: Double, startIndex: Int, endIndex: Int) extends Atom // Numerical values for transformations
 
 import soundcode.utils.parser.ASTPrinter
 case class ProgramAST(blocks: List[Block]) extends Block {

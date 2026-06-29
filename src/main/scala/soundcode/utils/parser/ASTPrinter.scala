@@ -64,7 +64,7 @@ object ASTPrinter {
             }.mkString("\n")
             s"$indent${marker}TransformationBlock: .off(...)\n$offsetStr\n$transStr"
             
-          case Unknown(name, pat) => formatTransWithParam("unknown", pat, nextIndent, indent, marker) // For unknown transformations, we don't have a pattern to display
+          case Unknown(name, pat) => formatTransWithParam("unknown", pat, nextIndent, indent, marker)
         }
 
       case SoundBlock(pat) =>
@@ -96,12 +96,17 @@ object ASTPrinter {
     val marker = if (isLast) "`-- " else "|-- "
     val nextIndent = indent + (if (isLast) "    " else "|   ")
     el match {
-      case SpeedModifiedElement(element, isMulFactor, factor) => s"$indent${marker}SpeedModifiedElement: ${if (isMulFactor) "Multiply" else "Divide"} by ${factor.value}\n${formatElement(element, nextIndent, isLast = true)}"
-      case AtomElement(atom) => s"$indent${marker}Atom: ${atom match { 
-        case n:Note => s"Note($n)"
-        case Sample(value) => s"Sample($value)"
-        case Config(value) => s"Config($value)" 
-      }}"
+      case SpeedModifiedElement(element, isMulFactor, factor) => 
+        s"$indent${marker}SpeedModifiedElement: ${if (isMulFactor) "Multiply" else "Divide"} by ${factor.value}\n${formatElement(element, nextIndent, isLast = true)}"
+      
+      case AtomElement(atom) => 
+        val atomStr = atom match { 
+          case n: Note => s"Note(name=${n.name}, acc=${n.accidental.getOrElse("none")}, oct=${n.octave}) [${n.startIndex}:${n.endIndex}]"
+          case s: Sample => s"Sample(${s.value}) [${s.startIndex}:${s.endIndex}]"
+          case c: Config => s"Config(${c.value}) [${c.startIndex}:${c.endIndex}]" 
+        }
+        s"$indent${marker}Atom: $atomStr"
+        
       case SubPatternElement(p) => s"$indent${marker}SubPatternElement [Square brackets contains]\n${formatPattern(p, nextIndent, isLast = true)}"
       case AlternationElement(p) => s"$indent${marker}AlternationElement [Angular brackets contains]\n${formatPattern(p, nextIndent, isLast = true)}"
     }

@@ -9,7 +9,7 @@ import soundcode.parser.AST.Transformations._
 
 class SoundCodeParserSuite extends AnyFunSuite with BeforeAndAfterAll {
 
-    private def DEBUG = true
+    private def DEBUG = false
     private val testReports = ListBuffer[String]()
 
     override def afterAll(): Unit = {
@@ -48,7 +48,7 @@ class SoundCodeParserSuite extends AnyFunSuite with BeforeAndAfterAll {
             
             val expected = Pattern(List(
             Sequence(List(
-                AtomElement(Sample("bd"))
+                AtomElement(Sample("bd", startIndex = 7, endIndex = 9))
             ))
             ))
             assert(block.pattern == expected)
@@ -66,7 +66,7 @@ class SoundCodeParserSuite extends AnyFunSuite with BeforeAndAfterAll {
 
             val expected = Pattern(List(
             Sequence(List(
-                AtomElement(Note("c", None, 4))
+                AtomElement(Note("c", None, 4, startIndex = 6, endIndex = 8))
             ))
             ))
             assert(block.pattern == expected)
@@ -86,9 +86,9 @@ class SoundCodeParserSuite extends AnyFunSuite with BeforeAndAfterAll {
             Sequence(List(
                 SubPatternElement(Pattern(List(
                 Sequence(List(
-                    AtomElement(Sample("bd")),
-                    AtomElement(Sample("hh")),
-                    AtomElement(Sample("sd"))
+                    AtomElement(Sample("bd", startIndex = 8, endIndex = 10)),
+                    AtomElement(Sample("hh", startIndex = 11, endIndex = 13)),
+                    AtomElement(Sample("sd", startIndex = 14, endIndex = 16))
                 ))
                 )))
             ))
@@ -108,11 +108,11 @@ class SoundCodeParserSuite extends AnyFunSuite with BeforeAndAfterAll {
 
             val expected = Pattern(List(
             Sequence(List(
-                AtomElement(Sample("bd")),
+                AtomElement(Sample("bd", startIndex = 7, endIndex = 9)),
                 AlternationElement(Pattern(List(
                 Sequence(List(
-                    AtomElement(Sample("hh")),
-                    AtomElement(Sample("oh"))
+                    AtomElement(Sample("hh", startIndex = 11, endIndex = 13)),
+                    AtomElement(Sample("oh", startIndex = 14, endIndex = 16))
                 ))
                 )))
             ))
@@ -130,9 +130,9 @@ class SoundCodeParserSuite extends AnyFunSuite with BeforeAndAfterAll {
             val stream = ast.blocks.head.asInstanceOf[StreamBlock]
             val block = stream.base.asInstanceOf[SoundBlock]
             val expected = Pattern(List(
-            Sequence(List(AtomElement(Sample("bd")))),
-            Sequence(List(AtomElement(Sample("hh")))),
-            Sequence(List(AtomElement(Sample("sd"))))
+            Sequence(List(AtomElement(Sample("bd", startIndex = 7, endIndex = 9)))),
+            Sequence(List(AtomElement(Sample("hh", startIndex = 10, endIndex = 12)))),
+            Sequence(List(AtomElement(Sample("sd", startIndex = 13, endIndex = 15))))
             ))
             assert(block.pattern == expected)
         case f: Parsed.Failure => fail(s"Parsing failed: ${f.msg}")
@@ -149,7 +149,7 @@ class SoundCodeParserSuite extends AnyFunSuite with BeforeAndAfterAll {
             val attachedSound = stream.extensions.head.asInstanceOf[GenerativeExtensionBlock].block.asInstanceOf[SoundBlock]
             
             val expectedSoundPattern = Pattern(List(
-            Sequence(List(AtomElement(Sample("bd"))))
+            Sequence(List(AtomElement(Sample("bd", startIndex = 18, endIndex = 20))))
             ))
             assert(attachedSound.pattern == expectedSoundPattern)
 
@@ -179,17 +179,17 @@ class SoundCodeParserSuite extends AnyFunSuite with BeforeAndAfterAll {
 
             val expected = Pattern(List(
                 Sequence(List(
-                AtomElement(Sample("bd")),
-                AtomElement(Sample("hh"))
+                AtomElement(Sample("bd", startIndex = 7, endIndex = 9)),
+                AtomElement(Sample("hh", startIndex = 10, endIndex = 12))
                 )),
                 Sequence(List(
                 SubPatternElement(Pattern(List(
                     Sequence(List(
-                    AtomElement(Sample("bd")),
+                    AtomElement(Sample("bd", startIndex = 15, endIndex = 17)),
                     AlternationElement(Pattern(List(
                         Sequence(List(
-                        AtomElement(Sample("hh")),
-                        AtomElement(Sample("oh"))
+                        AtomElement(Sample("hh", startIndex = 19, endIndex = 21)),
+                        AtomElement(Sample("oh", startIndex = 22, endIndex = 24))
                         ))
                     )))
                     ))
@@ -460,13 +460,13 @@ class SoundCodeParserSuite extends AnyFunSuite with BeforeAndAfterAll {
         val program = result.get.value
 
         val expectedNotes = List(
-            Note("c", None, 4),
-            Note("d", Some("#"), 5),
-            Note("e", Some("b"), 3),
-            Note("f", None, 6),
-            Note("g", None, 2),
-            Note("a", Some("#"), 0),
-            Note("b", Some("b"), 9)
+            Note("c", None, 4, startIndex = 6, endIndex = 8),
+            Note("d", Some("#"), 5, startIndex = 9, endIndex = 12),
+            Note("e", Some("b"), 3, startIndex = 13, endIndex = 16),
+            Note("f", None, 6, startIndex = 17, endIndex = 19),
+            Note("g", None, 2, startIndex = 20, endIndex = 22),
+            Note("a", Some("#"), 0, startIndex = 23, endIndex = 26),
+            Note("b", Some("b"), 9, startIndex = 27, endIndex = 30)
         )
 
         program.blocks.zip(expectedNotes).foreach { case (block, expectedNote) =>

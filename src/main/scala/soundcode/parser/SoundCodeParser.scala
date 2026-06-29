@@ -147,20 +147,22 @@ class SoundCodeParser {
   // A note is a pitch (a-g) followed by an optional octave (0-9)
   private def noteAtom(using P[?]): P[Note] = P(
     // note name (case-insensitive, lowercase in AST)
+    Index ~
     CharIn("a-gA-G").! ~ 
     StringIn("#", "s", "b").!.? ~ 
-    CharsWhileIn("0-9").!.?
-  ).map { case (pitch, accidentalOpt, octaveOpt) =>
+    CharsWhileIn("0-9").!.? ~
+    Index 
+  ).map { case (startIndex, pitch, accidentalOpt, octaveOpt, endIndex) =>
     val cleanAccidental = accidentalOpt.map(a => if (a == "s") "#" else a)
     val octave = octaveOpt.map(_.toInt).getOrElse(4)
-    Note(pitch.toLowerCase, cleanAccidental, octave)
+    Note(pitch.toLowerCase, cleanAccidental, octave, startIndex, endIndex)
   }
   // A sample is a string of lowercase letters and numbers
   private def sampleAtom(using P[?]): P[Sample] =
-    P( CharsWhileIn("a-z0-9").! ).map(Sample.apply)
+    P( Index ~ CharsWhileIn("a-z0-9").! ~ Index ).map { case (startIndex, value, endIndex) => Sample(value, startIndex, endIndex) }
 
   private def configAtom(using P[?]): P[Config] =
-    P( (CharIn("+\\-").? ~ CharsWhileIn("0-9") ~ ("." ~ CharsWhileIn("0-9")).?).! ).map(c => Config(c.toDouble))
+    P( Index ~ (CharIn("+\\-").? ~ CharsWhileIn("0-9") ~ ("." ~ CharsWhileIn("0-9")).?).! ~ Index ).map { case (startIndex, value, endIndex) => Config(value.toDouble, startIndex, endIndex) }
 
   
   /*

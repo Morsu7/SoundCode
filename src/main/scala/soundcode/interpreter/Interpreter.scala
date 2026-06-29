@@ -82,20 +82,20 @@ object Interpreter {
     }
 
     private def interpretSoundAtom(atom: Atom): domain.Sound = atom match {
-        case Sample(value) => interpretSampleAtom(atom)
-        case Note(name, accidental, octave) => interpretNoteAtom(atom)
+        case Sample(_, _, _) => interpretSampleAtom(atom)
+        case Note(_, _, _, _, _) => interpretNoteAtom(atom)
         case _ => throw new IllegalArgumentException("Expected Sample or Note")
     }
 
     private def interpretSampleAtom(atom: Atom): domain.Sound = atom match {
-        case Sample(value) => domain.Sound.SampleInText(domain.Sample(value), domain.TextPosition(0, 0))
+        case Sample(value, startIndex, endIndex) => domain.Sound.SampleInText(domain.Sample(value), domain.TextPosition(startIndex, endIndex))
         case _ => throw new IllegalArgumentException("Expected Sample")
     }
 
     private def interpretNoteAtom(atom: Atom): domain.Sound = atom match {
-        case Note(name, accidental, octave) => 
+        case Note(name, accidental, octave, startIndex, endIndex) => 
         val noteStr = s"$name${accidental.getOrElse("")}${octave}"
-        domain.Sound.NoteInText(domain.Note(noteStr), domain.TextPosition(0, 0))
+        domain.Sound.NoteInText(domain.Note(noteStr), domain.TextPosition(startIndex, endIndex))
         case _ => throw new IllegalArgumentException("Expected Note")
     }
 }
