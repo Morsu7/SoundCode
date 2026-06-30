@@ -6,12 +6,24 @@ import soundcode.domain.*
 import soundcode.interpreter.interpret
 import soundcode.engine.Resolvable.given
 
+// --- SYNTAX SUGAR PER LE FRAZIONI ---
+extension (n: Int)
+  def \(d: Int): Fraction = Fraction(n.toLong, d.toLong)
+
+extension (n: Long)
+  def \(d: Long): Fraction = Fraction(n, d)
+// ------------------------------------
+
 class SchedulerTest extends AnyFunSuite with Matchers {
 
+  // Limiti calcolati dinamicamente usando la nuova sintassi
   def resolve(tracks: List[Track], cycle: Int): List[ExpEvent] =
+    val cycleStart = cycle \ 1
+    val cycleEnd = (cycle + 1) \ 1
+
     SchedulerImpl.generateInfiniteTimeline(tracks)
-      .dropWhile(_.startTime.toDouble < cycle.toDouble)
-      .takeWhile(_.startTime.toDouble < (cycle.toDouble + 1.0))
+      .dropWhile(_.startTime < cycleStart)
+      .takeWhile(_.startTime < cycleEnd)
       .map(_.toExp)
       .toList
 
@@ -19,10 +31,10 @@ class SchedulerTest extends AnyFunSuite with Matchers {
     val streams = interpret("sound(\"bd hh sn hh\")")
 
     resolve(streams, 0) should contain theSameElementsInOrderAs List(
-      ExpEvent("bd", 0.0, 0.25),
-      ExpEvent("hh", 0.25, 0.5),
-      ExpEvent("sn", 0.5, 0.75),
-      ExpEvent("hh", 0.75, 1.0)
+      ExpEvent("bd", 0 \ 1, 1 \ 4),
+      ExpEvent("hh", 1 \ 4, 1 \ 2),
+      ExpEvent("sn", 1 \ 2, 3 \ 4),
+      ExpEvent("hh", 3 \ 4, 1 \ 1)
     )
   }
 
@@ -32,7 +44,7 @@ class SchedulerTest extends AnyFunSuite with Matchers {
 
     for (cycleIndex <- 0 until 8) {
       resolve(streams, cycleIndex) should contain theSameElementsInOrderAs List(
-        ExpEvent(outcomes(cycleIndex), cycleIndex.toDouble, cycleIndex.toDouble + 1.0)
+        ExpEvent(outcomes(cycleIndex), cycleIndex \ 1, (cycleIndex + 1) \ 1)
       )
     }
   }
@@ -41,19 +53,19 @@ class SchedulerTest extends AnyFunSuite with Matchers {
     val streams = interpret("note(\"c f [ g c c# ]\").sound(\"<bd [hh sn]> cp\").room(\"4 5 [4] , <4 5 6>\")")
 
     resolve(streams, 0) should contain theSameElementsInOrderAs List(
-      ExpEvent("c4", 0.0, 0.333, List("bd", "4.0", "4.0")),
-      ExpEvent("f4", 0.333, 0.667, List("bd", "5.0", "4.0")),
-      ExpEvent("g4", 0.667, 0.778, List("cp", "4.0", "4.0")),
-      ExpEvent("c4", 0.778, 0.889, List("cp", "4.0", "4.0")),
-      ExpEvent("c#4", 0.889, 1.0, List("cp", "4.0", "4.0"))
+      ExpEvent("c4", 0 \ 1, 1 \ 3, List("bd", "4.0", "4.0")),
+      ExpEvent("f4", 1 \ 3, 2 \ 3, List("bd", "5.0", "4.0")),
+      ExpEvent("g4", 2 \ 3, 7 \ 9, List("cp", "4.0", "4.0")),
+      ExpEvent("c4", 7 \ 9, 8 \ 9, List("cp", "4.0", "4.0")),
+      ExpEvent("c#4", 8 \ 9, 1 \ 1, List("cp", "4.0", "4.0"))
     )
 
     resolve(streams, 1) should contain theSameElementsInOrderAs List(
-      ExpEvent("c4", 1.0, 1.333, List("hh", "4.0", "5.0")),
-      ExpEvent("f4", 1.333, 1.667, List("sn", "5.0", "5.0")),
-      ExpEvent("g4", 1.667, 1.778, List("cp", "4.0", "5.0")),
-      ExpEvent("c4", 1.778, 1.889, List("cp", "4.0", "5.0")),
-      ExpEvent("c#4", 1.889, 2.0, List("cp", "4.0", "5.0"))
+      ExpEvent("c4", 1 \ 1, 4 \ 3, List("hh", "4.0", "5.0")),
+      ExpEvent("f4", 4 \ 3, 5 \ 3, List("sn", "5.0", "5.0")),
+      ExpEvent("g4", 5 \ 3, 16 \ 9, List("cp", "4.0", "5.0")),
+      ExpEvent("c4", 16 \ 9, 17 \ 9, List("cp", "4.0", "5.0")),
+      ExpEvent("c#4", 17 \ 9, 2 \ 1, List("cp", "4.0", "5.0"))
     )
   }
 
@@ -61,23 +73,23 @@ class SchedulerTest extends AnyFunSuite with Matchers {
     val streams = interpret("sound(\"bd hh sn hh [hh , sn < bd hh > ]\")")
 
     resolve(streams, 0) should contain allOf(
-      ExpEvent("bd", 0.0, 0.2),
-      ExpEvent("hh", 0.2, 0.4),
-      ExpEvent("sn", 0.4, 0.6),
-      ExpEvent("hh", 0.6, 0.8),
-      ExpEvent("hh", 0.8, 1.0),
-      ExpEvent("sn", 0.8, 0.9),
-      ExpEvent("bd", 0.9, 1.0)
+      ExpEvent("bd", 0 \ 1, 1 \ 5),
+      ExpEvent("hh", 1 \ 5, 2 \ 5),
+      ExpEvent("sn", 2 \ 5, 3 \ 5),
+      ExpEvent("hh", 3 \ 5, 4 \ 5),
+      ExpEvent("hh", 4 \ 5, 1 \ 1),
+      ExpEvent("sn", 4 \ 5, 9 \ 10),
+      ExpEvent("bd", 9 \ 10, 1 \ 1)
     )
 
     resolve(streams, 1) should contain allOf(
-      ExpEvent("bd", 1.0, 1.2),
-      ExpEvent("hh", 1.2, 1.4),
-      ExpEvent("sn", 1.4, 1.6),
-      ExpEvent("hh", 1.6, 1.8),
-      ExpEvent("hh", 1.8, 2.0),
-      ExpEvent("sn", 1.8, 1.9),
-      ExpEvent("hh", 1.9, 2.0)
+      ExpEvent("bd", 1 \ 1, 6 \ 5),
+      ExpEvent("hh", 6 \ 5, 7 \ 5),
+      ExpEvent("sn", 7 \ 5, 8 \ 5),
+      ExpEvent("hh", 8 \ 5, 9 \ 5),
+      ExpEvent("hh", 9 \ 5, 2 \ 1),
+      ExpEvent("sn", 9 \ 5, 19 \ 10),
+      ExpEvent("hh", 19 \ 10, 2 \ 1)
     )
   }
 
@@ -85,14 +97,14 @@ class SchedulerTest extends AnyFunSuite with Matchers {
     val streams = interpret("sound(\"<bd [hh sn]> cp\")")
 
     resolve(streams, 0) should contain theSameElementsInOrderAs List(
-      ExpEvent("bd", 0.0, 0.5),
-      ExpEvent("cp", 0.5, 1.0)
+      ExpEvent("bd", 0 \ 1, 1 \ 2),
+      ExpEvent("cp", 1 \ 2, 1 \ 1)
     )
 
     resolve(streams, 1) should contain theSameElementsInOrderAs List(
-      ExpEvent("hh", 1.0, 1.25),
-      ExpEvent("sn", 1.25, 1.5),
-      ExpEvent("cp", 1.5, 2.0)
+      ExpEvent("hh", 1 \ 1, 5 \ 4),
+      ExpEvent("sn", 5 \ 4, 3 \ 2),
+      ExpEvent("cp", 3 \ 2, 2 \ 1)
     )
   }
 
@@ -102,16 +114,14 @@ class SchedulerTest extends AnyFunSuite with Matchers {
 
     viewData should have size 2
 
-    // Il secondo stream deve fermarsi alla Phase 3.0 (3 cicli)
-    viewData(1).last.endTime.toDouble shouldBe 3.0
+    viewData(1).last.endTime shouldBe (3 \ 1)
 
     viewData(1).map(_.toExp) should contain theSameElementsInOrderAs List(
-      ExpEvent("cp", 0.0, 1.0),
-      ExpEvent("rim", 1.0, 2.0),
-      ExpEvent("bd", 2.0, 3.0)
+      ExpEvent("cp", 0 \ 1, 1 \ 1),
+      ExpEvent("rim", 1 \ 1, 2 \ 1),
+      ExpEvent("bd", 2 \ 1, 3 \ 1)
     )
   }
-
 
   test("generateBoundedTimelines: Poliritmia tra Base (2) ed Estensione (3) -> MCM = 6 cicli") {
     val streams = interpret("sound(\"<bd cp>\").note(\"<c f g>\")")
@@ -120,16 +130,15 @@ class SchedulerTest extends AnyFunSuite with Matchers {
     viewData should have size 1
     val trackTimeline = viewData.head
 
-    trackTimeline.last.endTime.toDouble shouldBe 6.0
+    trackTimeline.last.endTime shouldBe (6 \ 1)
 
-    // Verifichiamo l'incrocio sfalsato di note e suoni!
     trackTimeline.map(_.toExp) should contain theSameElementsInOrderAs List(
-      ExpEvent("bd", 0.0, 1.0, List("c4")), // Ciclo 0
-      ExpEvent("cp", 1.0, 2.0, List("f4")), // Ciclo 1
-      ExpEvent("bd", 2.0, 3.0, List("g4")), // Ciclo 2
-      ExpEvent("cp", 3.0, 4.0, List("c4")), // Ciclo 3 (nota riparte)
-      ExpEvent("bd", 4.0, 5.0, List("f4")), // Ciclo 4
-      ExpEvent("cp", 5.0, 6.0, List("g4")) // Ciclo 5
+      ExpEvent("bd", 0 \ 1, 1 \ 1, List("c4")),
+      ExpEvent("cp", 1 \ 1, 2 \ 1, List("f4")),
+      ExpEvent("bd", 2 \ 1, 3 \ 1, List("g4")),
+      ExpEvent("cp", 3 \ 1, 4 \ 1, List("c4")),
+      ExpEvent("bd", 4 \ 1, 5 \ 1, List("f4")),
+      ExpEvent("cp", 5 \ 1, 6 \ 1, List("g4"))
     )
   }
 
@@ -140,13 +149,13 @@ class SchedulerTest extends AnyFunSuite with Matchers {
     viewData should have size 1
     val trackTimeline = viewData.head
 
-    trackTimeline.last.endTime.toDouble shouldBe 4.0
+    trackTimeline.last.endTime shouldBe (4 \ 1)
 
     trackTimeline.map(_.toExp) should contain theSameElementsInOrderAs List(
-      ExpEvent("bd", 0.0, 1.0),
-      ExpEvent("hh", 1.0, 2.0),
-      ExpEvent("bd", 2.0, 3.0),
-      ExpEvent("sn", 3.0, 4.0)
+      ExpEvent("bd", 0 \ 1, 1 \ 1),
+      ExpEvent("hh", 1 \ 1, 2 \ 1),
+      ExpEvent("bd", 2 \ 1, 3 \ 1),
+      ExpEvent("sn", 3 \ 1, 4 \ 1)
     )
   }
 
@@ -157,15 +166,15 @@ class SchedulerTest extends AnyFunSuite with Matchers {
     viewData should have size 1
     val trackTimeline = viewData.head
 
-    trackTimeline.last.endTime.toDouble shouldBe 6.0
+    trackTimeline.last.endTime shouldBe (6 \ 1)
 
     trackTimeline.map(_.toExp) should contain theSameElementsInOrderAs List(
-      ExpEvent("bd", 0.0, 1.0, List("c4", "3.0")),
-      ExpEvent("bd", 1.0, 2.0, List("f4", "4.0")),
-      ExpEvent("bd", 2.0, 3.0, List("c4", "5.0")),
-      ExpEvent("bd", 3.0, 4.0, List("f4", "3.0")),
-      ExpEvent("bd", 4.0, 5.0, List("c4", "4.0")),
-      ExpEvent("bd", 5.0, 6.0, List("f4", "5.0"))
+      ExpEvent("bd", 0 \ 1, 1 \ 1, List("c4", "3.0")),
+      ExpEvent("bd", 1 \ 1, 2 \ 1, List("f4", "4.0")),
+      ExpEvent("bd", 2 \ 1, 3 \ 1, List("c4", "5.0")),
+      ExpEvent("bd", 3 \ 1, 4 \ 1, List("f4", "3.0")),
+      ExpEvent("bd", 4 \ 1, 5 \ 1, List("c4", "4.0")),
+      ExpEvent("bd", 5 \ 1, 6 \ 1, List("f4", "5.0"))
     )
   }
 
@@ -176,11 +185,11 @@ class SchedulerTest extends AnyFunSuite with Matchers {
     viewData should have size 1
     val trackTimeline = viewData.head
 
-    trackTimeline.last.endTime.toDouble shouldBe 2.0
+    trackTimeline.last.endTime shouldBe (2 \ 1)
 
     trackTimeline.map(_.toExp) should contain theSameElementsInOrderAs List(
-      ExpEvent("bd", 0.0, 1.0, List("c4")),
-      ExpEvent("cp", 1.0, 2.0, List("c4"))
+      ExpEvent("bd", 0 \ 1, 1 \ 1, List("c4")),
+      ExpEvent("cp", 1 \ 1, 2 \ 1, List("c4"))
     )
   }
 
@@ -191,17 +200,17 @@ class SchedulerTest extends AnyFunSuite with Matchers {
     viewData should have size 1
     val trackTimeline = viewData.head
 
-    trackTimeline.last.endTime.toDouble shouldBe 8.0
+    trackTimeline.last.endTime shouldBe (8 \ 1)
 
     trackTimeline.map(_.toExp) should contain theSameElementsInOrderAs List(
-      ExpEvent("bd", 0.0, 1.0),
-      ExpEvent("hh", 1.0, 2.0),
-      ExpEvent("bd", 2.0, 3.0),
-      ExpEvent("sn", 3.0, 4.0),
-      ExpEvent("bd", 4.0, 5.0),
-      ExpEvent("hh", 5.0, 6.0),
-      ExpEvent("bd", 6.0, 7.0),
-      ExpEvent("cp", 7.0, 8.0)
+      ExpEvent("bd", 0 \ 1, 1 \ 1),
+      ExpEvent("hh", 1 \ 1, 2 \ 1),
+      ExpEvent("bd", 2 \ 1, 3 \ 1),
+      ExpEvent("sn", 3 \ 1, 4 \ 1),
+      ExpEvent("bd", 4 \ 1, 5 \ 1),
+      ExpEvent("hh", 5 \ 1, 6 \ 1),
+      ExpEvent("bd", 6 \ 1, 7 \ 1),
+      ExpEvent("cp", 7 \ 1, 8 \ 1)
     )
   }
 
@@ -212,54 +221,42 @@ class SchedulerTest extends AnyFunSuite with Matchers {
     viewData should have size 1
     val trackTimeline = viewData.head
 
-    trackTimeline.last.endTime.toDouble shouldBe 18.0
+    trackTimeline.last.endTime shouldBe (18 \ 1)
 
-    // Verifichiamo a campione alcuni punti critici per assicurarci che la matematica regga:
     val events = trackTimeline.map(_.toExp).toVector
 
-    events(0).element shouldBe "bd" // Ciclo 0
-    events(1).element shouldBe "cp" // Ciclo 1
-    events(2).element shouldBe "hh" // Ciclo 2 (terza opzione esterna, prima opzione media)
-
-    events(3).element shouldBe "bd" // Ciclo 3
-    events(4).element shouldBe "cp" // Ciclo 4
-    events(5).element shouldBe "sn" // Ciclo 5 (terza opz. est, seconda opz. med, prima opz. int)
-
-    events(17).element shouldBe "clap" // Ciclo 17: Ultimo giro prima di ricominciare tutto!
+    events(0).element shouldBe "bd"
+    events(1).element shouldBe "cp"
+    events(2).element shouldBe "hh"
+    events(3).element shouldBe "bd"
+    events(4).element shouldBe "cp"
+    events(5).element shouldBe "sn"
+    events(17).element shouldBe "clap"
   }
 
   test("Stress Test 3: Scontro di numeri primi tra base ed estensioni (2, 3, 5 -> MCM = 30)") {
-    // Base: 2 cicli
-    // Note: 3 cicli
-    // Gain: 5 cicli
     val streams = interpret("sound(\"<bd cp>\").note(\"<c f g>\").gain(\"<1 2 3 4 5>\")")
     val viewData = SchedulerImpl.generateBoundedTimelines(streams)
 
     viewData should have size 1
     val trackTimeline = viewData.head
 
-    // Il calcolo deve risultare in esattamente 30 cicli!
-    trackTimeline.last.endTime.toDouble shouldBe 30.0
+    trackTimeline.last.endTime shouldBe (30 \ 1)
     trackTimeline should have size 30
 
     val events = trackTimeline.map(_.toExp).toVector
 
-    // Ciclo 0: (bd, c, 1) -> indici: 0%2, 0%3, 0%5
-    events(0) shouldBe ExpEvent("bd", 0.0, 1.0, List("c4", "1.0"))
-
-    // Ciclo 14: indici -> 14%2=0 (bd), 14%3=2 (g), 14%5=4 (5)
-    events(14) shouldBe ExpEvent("bd", 14.0, 15.0, List("g4", "5.0"))
-
-    // Ciclo 29: indici -> 29%2=1 (cp), 29%3=2 (g), 29%5=4 (5)
-    events(29) shouldBe ExpEvent("cp", 29.0, 30.0, List("g4", "5.0"))
+    events(0) shouldBe ExpEvent("bd", 0 \ 1, 1 \ 1, List("c4", "1.0"))
+    events(14) shouldBe ExpEvent("bd", 14 \ 1, 15 \ 1, List("g4", "5.0"))
+    events(29) shouldBe ExpEvent("cp", 29 \ 1, 30 \ 1, List("g4", "5.0"))
   }
 }
 
-case class ExpEvent(element: String, start: Double, end: Double, extensions: List[String] = Nil)
+// Classe ExpEvent invariata, accetta Fraction
+case class ExpEvent(element: String, start: Fraction, end: Fraction, extensions: List[String] = Nil)
 
 extension (e: ScheduledEvent)
   def toExp: ExpEvent =
-    val round = (d: Double) => Math.round(d * 1000.0) / 1000.0
     val exts = e.appliedExtensions.map {
       case Sound.NoteInText(n, _) => n.value
       case Sound.SampleInText(s, _) => s.value
@@ -272,4 +269,4 @@ extension (e: ScheduledEvent)
       case Sound.NoteInText(n, _) => n.value
       case _ => "unknown"
     }
-    ExpEvent(name, round(e.startTime.toDouble), round(e.endTime.toDouble), exts)
+    ExpEvent(name, e.startTime, e.endTime, exts)

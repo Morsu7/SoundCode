@@ -21,8 +21,8 @@ object SchedulerImpl extends Scheduler:
     loop(0)
 
   private def resolveCycle(tracks: List[Track], nCycle: Int)(using res: Resolvable[Pattern]): List[ScheduledEvent] = {
-    val startPhase = Phase(nCycle.toDouble)
-    val endPhase = Phase(nCycle.toDouble + 1.0)
+    val startPhase = Fraction(nCycle)
+    val endPhase = Fraction(nCycle + 1)
 
     tracks.flatMap { stream =>
       val baseEvents = res.resolve(stream.base, startPhase, endPhase, nCycle)
