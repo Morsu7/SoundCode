@@ -8,16 +8,15 @@ import soundcode.mvu.Update
 
 object SoundCodeFrame extends JFXApp3:
   override def start(): Unit =
-    var mainView: MainView = null
     val initialModel = AppModel()
 
-    val runtime = SoundCodeRuntime(
-      initialModel = initialModel,
-      render =
-        (model: AppModel) => if mainView != null then mainView.render(model)
-    )
+    lazy val mainView: MainView = MainView(runtime.dispatch)
 
-    mainView = MainView(runtime.dispatch)
+    lazy val runtime: SoundCodeRuntime =
+      SoundCodeRuntime(
+        initialModel = initialModel,
+        render = model => mainView.render(model)
+      )
     mainView.render(initialModel)
 
     stage = new JFXApp3.PrimaryStage:

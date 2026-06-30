@@ -1,19 +1,20 @@
 package soundcode.ui.editor
 
 import org.fxmisc.richtext.GenericStyledArea
+import soundcode.ui.UITheme
 
 object SyntaxHighlighter:
   private val StringPattern = "\"([^\"\\\\]|\\\\.)*\"".r
   private val FunctionPattern = """\b[a-zA-Z_][a-zA-Z0-9_]*(?=\()""".r
 
   private val DefaultStyle =
-    "-fx-fill: #f4f4f5; -fx-font-smoothing-type: gray;"
+    UITheme.textStyle(UITheme.Foreground)
 
   private val StringStyle =
-    "-fx-fill: #86efac; -fx-font-smoothing-type: gray;"
+    UITheme.textStyle(UITheme.String)
 
   private val FunctionStyle =
-    "-fx-fill: #93c5fd; -fx-font-weight: bold; -fx-font-smoothing-type: gray;"
+    s"${UITheme.textStyle(UITheme.Function)} -fx-font-weight: bold;"
 
   def applyTo(area: GenericStyledArea[?, ?, String]): Unit =
     val text = area.getText

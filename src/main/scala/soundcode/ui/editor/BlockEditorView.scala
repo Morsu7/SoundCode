@@ -2,9 +2,8 @@ package soundcode.ui.editor
 
 import javafx.scene.Node
 import javafx.scene.text.{Text, TextFlow}
-import javafx.util.Duration
 import org.fxmisc.flowless.VirtualizedScrollPane
-import org.fxmisc.richtext.{GenericStyledArea, LineNumberFactory}
+import org.fxmisc.richtext.GenericStyledArea
 import org.fxmisc.richtext.model.{SegmentOps, StyledSegment, TextOps}
 import org.reactfx.util.{Either as RichEither}
 import scalafx.Includes.jfxNode2sfx
@@ -17,6 +16,7 @@ import java.util.function.{BiConsumer, Function}
 import scala.jdk.CollectionConverters.*
 import java.util.Optional
 import soundcode.mvu.AppModel
+import soundcode.ui.UITheme
 
 final class BlockEditorView:
   private type Segment = RichEither[String, EmbeddedVisualizerSegment]
@@ -29,7 +29,6 @@ final class BlockEditorView:
       (_, _) => Optional.empty()
     )
 
-  private var firstRender = true
   private var visualizers = Vector.empty[AnimatedView]
   private var highlightScheduled = false
   private var replacingCode = false
@@ -37,11 +36,11 @@ final class BlockEditorView:
   private def applyEditorChrome(): Unit =
     Platform.runLater {
       area.lookupAll(".caret").asScala.foreach {
-        _.setStyle("-fx-stroke: #f4f4f5;")
+        _.setStyle(s"-fx-stroke: ${UITheme.Foreground};")
       }
 
       area.lookupAll(".paragraph-box").asScala.foreach {
-        _.setStyle("-fx-background-color: #1f1f24;")
+        _.setStyle(UITheme.backgroundStyle)
       }
     }
 
@@ -111,14 +110,14 @@ final class BlockEditorView:
         )
 
         label.setStyle(
-          """
-            |-fx-background-color: #1f1f24;
-            |-fx-text-fill: #8b949e;
-            |-fx-font-family: 'Cascadia Code', 'JetBrains Mono', 'Consolas';
-            |-fx-font-size: 13px;
-            |-fx-padding: 0 8 0 4;
-            |-fx-alignment: center-right;
-            |""".stripMargin
+          s"""
+             |-fx-background-color: ${UITheme.Background};
+             |-fx-text-fill: ${UITheme.Muted};
+             |-fx-font-family: ${UITheme.FontFamily};
+             |-fx-font-size: 13px;
+             |-fx-padding: 0 8 0 4;
+             |-fx-alignment: center-right;
+             |""".stripMargin
         )
 
         label.setMinWidth(24)
@@ -127,12 +126,12 @@ final class BlockEditorView:
         label
   )
   area.setStyle(
-    """
-      |-fx-font-family: 'Cascadia Code', 'JetBrains Mono', 'Consolas';
+    s"""
+      |-fx-font-family: ${UITheme.FontFamily};
       |-fx-font-size: 15px;
-      |-fx-background-color: #1f1f24;
-      |-fx-control-inner-background: #1f1f24;
-      |-fx-text-fill: #f4f4f5;
+      |-fx-background-color: ${UITheme.Background};
+      |-fx-control-inner-background: ${UITheme.Background};
+      |-fx-text-fill: ${UITheme.Foreground};
       |""".stripMargin
   )
   applyEditorChrome()
@@ -146,18 +145,15 @@ final class BlockEditorView:
   val root: StackPane = new StackPane:
     children = Seq(jfxNode2sfx(new VirtualizedScrollPane(area)))
 
-  def render(state: AppModel): Unit =
-    if firstRender then
-      firstRender = false
-      // setCodeWithVisualizers(code)
+  def render(state: AppModel): Unit = ()
 
   def currentCode: String =
-    area.getText
+    area.getParagraphs.asScala
+      .filterNot(paragraph => paragraph.getSegments.asScala.exists(_.isRight))
+      .map(_.getText)
+      .mkString("\n")
       .replace("\r\n", "\n")
       .replace("\r", "\n")
-      .linesIterator
-      .filterNot(_.trim.isEmpty)
-      .mkString("\n")
 
   def play(): Unit =
     visualizers.foreach(_.play())
@@ -193,12 +189,13 @@ final class BlockEditorView:
   private def visualizerInsertions(code: String): Vector[(Int, AnimatedView)] =
     val lines = code.split("\n", -1).toVector
 
-    var offset = 0
+    val offsets =
+      lines
+        .scanLeft(0)((offset, line) => offset + line.length + 1)
+        .init
 
-    lines.zipWithIndex.flatMap { case (line, index) =>
+    lines.zip(offsets).flatMap { case (line, offset) =>
       val lineEnd = offset + line.length
-      offset = lineEnd + (if index < lines.length - 1 then 1 else 0)
-
       BlockEditorVisualizers.forLine(line).map(view => lineEnd -> view)
     }
 

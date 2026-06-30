@@ -1,20 +1,8 @@
 package soundcode.ui.visualizer
 
-import scalafx.animation.{KeyFrame, PauseTransition, Timeline}
-import scalafx.geometry.{Insets, Pos}
-import scalafx.scene.Node
-import scalafx.scene.control.Label
-import scalafx.scene.layout.{HBox, VBox}
-import scalafx.util.Duration
-import scalafx.scene.layout.StackPane
-import scalafx.scene.layout.GridPane
-import soundcode.ui.visualizer.AnimatedView
-import scalafx.scene.canvas.Canvas
-import scalafx.animation.AnimationTimer
 import scalafx.scene.paint.Color
 import scalafx.scene.canvas.GraphicsContext
-import scalafx.application.Platform
-
+import soundcode.ui.UITheme
 final class PianoRollView extends CanvasAnimatedView:
   private val minPitch = notes.map(_.pitch).min
   private val maxPitch = notes.map(_.pitch).max
@@ -62,10 +50,10 @@ final class PianoRollView extends CanvasAnimatedView:
         currentBeat >= note.start && currentBeat < note.start + note.duration
 
       if isActive then
-        gc.stroke = Color.White
+        gc.stroke = Color.web(UITheme.Foreground)
         gc.lineWidth = 2
         gc.strokeRect(x, y, width, height)
       else
-        gc.fill = Color.rgb(255, 255, 255)
+        gc.fill = Color.web(UITheme.Foreground)
         gc.fillRect(x, y, width, height)
     }

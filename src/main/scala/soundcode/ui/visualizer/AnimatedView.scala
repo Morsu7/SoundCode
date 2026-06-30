@@ -4,12 +4,12 @@ import scalafx.scene.Node
 import scalafx.scene.canvas.GraphicsContext
 import scalafx.scene.layout.VBox
 import scalafx.scene.canvas.Canvas
-import scalafx.scene.control.Label
 import scalafx.geometry.Insets
 import scalafx.scene.paint.Color
 import scalafx.animation.AnimationTimer
 import scalafx.application.Platform
 import scalafx.scene.layout.Pane
+import soundcode.ui.UITheme
 
 private case class FakeNote(
     pitch: Int,
@@ -82,7 +82,7 @@ abstract class CanvasAnimatedView extends AnimatedView:
     else notes.map(note => note.start + note.duration).max
 
   protected def clear(gc: GraphicsContext, w: Double, h: Double): Unit =
-    gc.fill = Color.web("#1f1f24")
+    gc.fill = Color.web(UITheme.Background)
     gc.fillRect(0, 0, w, h)
 
   protected def draw(
