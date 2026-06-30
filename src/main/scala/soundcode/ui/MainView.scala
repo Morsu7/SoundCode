@@ -17,11 +17,12 @@ class MainView(
 ):
   private val editorView = new BlockEditorView
 
-  def render(model: AppModel): Unit =
-    editorView.renderCode(model.code)
+  def render(state: AppModel): Unit =
+    editorView.render(state)
 
   val root: BorderPane = new BorderPane:
     padding = Insets(10)
+    style = "-fx-background-color: #1f1f24;"
     center = editorView.root
     top = toolbar
 
@@ -29,6 +30,7 @@ class MainView(
   @nowarn("msg=Implicit parameters should be provided with a `using` clause")
   private def toolbar: ToolBar =
     new ToolBar:
+      style = "-fx-background-color: #1f1f24; -fx-padding: 6;"
       content = Seq(
         new Button("Play"):
           onAction = _ => editorView.play()

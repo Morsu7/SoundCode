@@ -56,14 +56,6 @@ abstract class CanvasAnimatedView extends AnimatedView:
   canvas.managed = false
   canvas.height = canvasHeight
 
-  canvasPane.width.onChange {
-    val newWidth = canvasPane.width.value.max(0.0)
-
-    if canvas.width.value != newWidth then canvas.width = newWidth
-
-    redraw(lastBeat)
-  }
-
   private val view = new VBox:
     spacing = 4
     padding = Insets(config.horizontalPadding)
@@ -71,6 +63,13 @@ abstract class CanvasAnimatedView extends AnimatedView:
     prefWidth = 0
     maxWidth = Double.MaxValue
     children = canvasPane
+
+  canvasPane.prefWidthProperty().bind(view.widthProperty())
+  canvas.widthProperty().bind(canvasPane.widthProperty())
+
+  canvas.width.onChange {
+    redraw(lastBeat)
+  }
 
   override val root: Node = view
 
@@ -83,7 +82,7 @@ abstract class CanvasAnimatedView extends AnimatedView:
     else notes.map(note => note.start + note.duration).max
 
   protected def clear(gc: GraphicsContext, w: Double, h: Double): Unit =
-    gc.fill = Color.rgb(31, 31, 36)
+    gc.fill = Color.web("#1f1f24")
     gc.fillRect(0, 0, w, h)
 
   protected def draw(
