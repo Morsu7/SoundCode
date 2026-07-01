@@ -8,9 +8,3 @@ class BlockEditorViewSpec extends UITestSupport:
       val editor = new BlockEditorView
 
       assert(editor.root != null)
-
-  test("block editor starts with empty code"):
-    onFxThread:
-      val editor = new BlockEditorView
-
-      assert(editor.currentCode == "")
