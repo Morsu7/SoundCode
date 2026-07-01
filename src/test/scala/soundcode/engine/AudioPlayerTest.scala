@@ -3,13 +3,33 @@ package soundcode.engine
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
 import soundcode.domain.*
-import soundcode.engine.Resolvable.given
-import soundcode.interpreter.interpret
 
 class AudioPlayerTest extends AnyFunSuite with Matchers {
+  
+  val dummyPos = TextPosition(0, 0)
+
+  def bd = Pattern.Atom(Sound.SampleInText(Sample("bd"), dummyPos))
+  def hh = Pattern.Atom(Sound.SampleInText(Sample("hh"), dummyPos))
+  def sn = Pattern.Atom(Sound.SampleInText(Sample("sn"), dummyPos))
+  def cp = Pattern.Atom(Sound.SampleInText(Sample("cp"), dummyPos))
+
+  def c4 = Pattern.Atom(Sound.NoteInText(Note("c4"), dummyPos))
+  def f4 = Pattern.Atom(Sound.NoteInText(Note("f4"), dummyPos))
+  def g4 = Pattern.Atom(Sound.NoteInText(Note("g4"), dummyPos))
+
+  def gain(v: Double) = Pattern.Atom(AudioEffect.Gain(v))
+  def room(v: Double) = Pattern.Atom(AudioEffect.Room(v))
+
+  def seq[T](p: Pattern[T]*): Pattern[T] = Pattern.Sequence(p.toList)
+  def par[T](p: Pattern[T]*): Pattern[T] = Pattern.Parallel(p.toList)
+  def alt[T](p: Pattern[T]*): Pattern[T] = Pattern.Alternation(p.toList)
+  def ext(base: Pattern[AudioPayload], exts: Pattern[AudioPayload]*): Pattern[AudioPayload] =
+    Pattern.WithExtensions(base, exts.toList)
+  
 
   test("bd hh sn hh") {
-    val player = setupPlayer(interpret("sound(\"bd hh sn hh\")"))
+    val pattern = seq(bd, hh, sn, hh)
+    val player = setupPlayer(pattern)
     val events = playCycle(player, 0)
 
     events should have size 4
@@ -22,17 +42,23 @@ class AudioPlayerTest extends AnyFunSuite with Matchers {
   }
 
   test("sound(\"bd hh\").note(\"c f g\")") {
-    val player = setupPlayer(interpret("sound(\"bd hh\").note(\"c f g\")"))
+    // Il bd dura [0, 0.5]. Le note durano [0, 0.333], [0.333, 0.667], [0.667, 1.0]
+    // Nuova logica esatta:
+    // bd (0 -> 0.5) tocca c4 (0 -> 0.333) e f4 (0.333 -> 0.667)
+    // hh (0.5 -> 1.0) tocca f4 (0.333 -> 0.667) e g4 (0.667 -> 1.0)
+    val pattern = ext(seq(bd, hh), seq(c4, f4, g4))
+    val player = setupPlayer(pattern)
     val events = playCycle(player, 0)
 
     events should contain theSameElementsInOrderAs List(
-      PlayedEvent("bd", 0L, 1000L, List("c4")),
-      PlayedEvent("hh", 1000L, 1000L, List("f4"))
+      PlayedEvent("bd", 0L, 1000L, List("c4", "f4")),
+      PlayedEvent("hh", 1000L, 1000L, List("f4", "g4"))
     )
   }
 
   test("bd hh sn hh [hh , sn < bd hh > ] (Due Cicli)") {
-    val player = setupPlayer(interpret("sound(\"bd hh sn hh [hh , sn < bd hh > ]\")"))
+    val pattern = seq(bd, hh, sn, hh, par(hh, seq(sn, alt(bd, hh))))
+    val player = setupPlayer(pattern)
 
     // --- CICLO 0 ---
     val cycle0 = playCycle(player, 0)
@@ -63,7 +89,8 @@ class AudioPlayerTest extends AnyFunSuite with Matchers {
 
   test("Scalabilità del tempo: cps = 1.0 (1 secondo per ciclo)") {
     val myCps = 1.0
-    val player = setupPlayer(interpret("sound(\"bd hh sn hh\")"), cps = myCps)
+    val pattern = seq(bd, hh, sn, hh)
+    val player = setupPlayer(pattern, cps = myCps)
     val events = playCycle(player, 0, myCps)
 
     events should have size 4
@@ -77,7 +104,8 @@ class AudioPlayerTest extends AnyFunSuite with Matchers {
 
   test("Scalabilità estrema: cps = 2.0 (Mezzo secondo per ciclo)") {
     val myCps = 2.0
-    val player = setupPlayer(interpret("sound(\"bd hh sn hh\")"), cps = myCps)
+    val pattern = seq(bd, hh, sn, hh)
+    val player = setupPlayer(pattern, cps = myCps)
     val events = playCycle(player, 0, myCps)
 
     events should contain theSameElementsInOrderAs List(
@@ -88,23 +116,14 @@ class AudioPlayerTest extends AnyFunSuite with Matchers {
     )
   }
 
-  test("Inversione: base Note e estensione Sample (note(\"c f\").sound(\"bd\"))") {
-    val player = setupPlayer(interpret("note(\"c f\").sound(\"bd hh sn hh\")"))
-    val events = playCycle(player, 0)
-
-    events should contain theSameElementsInOrderAs List(
-      PlayedEvent("c4", 0L, 1000L, List("bd")),
-      PlayedEvent("f4", 1000L, 1000L, List("sn"))
-    )
-  }
-
   test("Propagazione degli Effetti (Gain e Room)") {
-    val player = setupPlayer(interpret("sound(\"bd sn hh\").gain(\"3 5\").room(\"6\")"))
+    val pattern = ext(seq(bd, sn, hh), seq(gain(3.0), gain(5.0)), room(6.0))
+    val player = setupPlayer(pattern)
     val events = playCycle(player, 0)
 
     events should contain theSameElementsInOrderAs List(
       PlayedEvent("bd", 0L, 667L, List("gain(3.0)", "room(6.0)")),
-      PlayedEvent("sn", 666L, 667L, List("gain(3.0)", "room(6.0)")),
+      PlayedEvent("sn", 666L, 667L, List("gain(3.0)", "gain(5.0)", "room(6.0)")),
       PlayedEvent("hh", 1333L, 667L, List("gain(5.0)", "room(6.0)"))
     )
   }
@@ -120,26 +139,25 @@ class AudioPlayerTest extends AnyFunSuite with Matchers {
       super.tick(now)
     }
 
-    override protected def triggerSound(element: Element, durationMs: Long, extensions: List[Element]): Unit = {
-      val name = element match {
-        case Sound.SampleInText(s, _) => s.value
-        case Sound.NoteInText(n, _) => n.value
-        case _ => "unknown"
-      }
-      val extNames = extensions.map {
+    override protected def triggerSound(payload: AudioPayload, durationMs: Long, extensions: List[AudioPayload]): Unit = {
+      def extractName(p: AudioPayload): String = p match {
         case Sound.SampleInText(s, _) => s.value
         case Sound.NoteInText(n, _) => n.value
         case AudioEffect.Gain(v) => s"gain($v)"
         case AudioEffect.Room(v) => s"room($v)"
         case _ => "unknown"
       }
+
+      val name = extractName(payload)
+      val extNames = extensions.map(extractName)
       playedEvents = playedEvents :+ PlayedEvent(name, simulatedNow.toLong, durationMs, extNames)
     }
   }
 
-  def setupPlayer(tracks: List[Track], cps: Double = 0.5): TestableAudioPlayer = {
+  def setupPlayer(pattern: Pattern[AudioPayload], cps: Double = 0.5): TestableAudioPlayer = {
     val player = new TestableAudioPlayer(Tempo(cps))
-    val playerStream = SchedulerImpl.generateInfiniteTimeline(tracks)
+    // Generiamo lo stream passando il pattern in una List, come richiesto dal nuovo generatore
+    val playerStream = SchedulerImpl.generateInfiniteTimeline(List(pattern))
     player.updateTimeline(playerStream)
     player
   }

@@ -1,4 +1,4 @@
-package soundcode.interpreter
+/*package soundcode.interpreter
 
 import soundcode.parser.AST._
 import soundcode.parser.AST.Transformations._
@@ -98,4 +98,4 @@ object Interpreter {
         domain.Sound.NoteInText(domain.Note(noteStr), domain.TextPosition(0, 0))
         case _ => throw new IllegalArgumentException("Expected Note")
     }
-}
+}*/

@@ -15,9 +15,7 @@ case class Fraction(n: Long, d: Long) extends Ordered[Fraction]:
   override def equals(obj: Any): Boolean = obj match
     case that: Fraction => this.num == that.num && this.den == that.den
     case _ => false
-
   override def hashCode(): Int = (num, den).##
-
   @tailrec
   private def gcd(a: Long, b: Long): Long = if (b == 0) a else gcd(b, a % b)
   def +(that: Fraction): Fraction = Fraction(num * that.den + that.num * den, den * that.den)
@@ -25,7 +23,6 @@ case class Fraction(n: Long, d: Long) extends Ordered[Fraction]:
   def *(that: Fraction): Fraction = Fraction(num * that.num, den * that.den)
   def /(that: Fraction): Fraction = Fraction(num * that.den, den * that.num)
   def toDouble: Double = num.toDouble / den.toDouble
-
   def compare(that: Fraction): Int = (this.num * that.den).compare(that.num * this.den)
 
 object Fraction:
@@ -33,16 +30,12 @@ object Fraction:
   def apply(n: Double): Fraction = Fraction(n.toLong, 1)
   def apply(n: Int): Fraction = Fraction(n.toLong, 1)
 
-
-opaque type AbsoluteTime = Long
-object AbsoluteTime:
-  def apply(value: Long): AbsoluteTime = value
-  extension (t: AbsoluteTime)
-    def toLong: Long = t
-    def +(other: Long): AbsoluteTime = AbsoluteTime(t + other)
-    def -(other: Long): AbsoluteTime = AbsoluteTime(t - other)
-    def <(other: AbsoluteTime): Boolean = t < other
-    def <=(other: AbsoluteTime): Boolean = t <= other
+case class Interval(start: Fraction, end: Fraction):
+  def duration: Fraction = end - start
+  def intersect(other: Interval): Option[Interval] =
+    val newStart = if (start > other.start) start else other.start
+    val newEnd = if (end < other.end) end else other.end
+    if (newStart < newEnd) Some(Interval(newStart, newEnd)) else None
 
 opaque type Note = String
 object Note:
@@ -61,19 +54,14 @@ object Sample:
 
 case class TextPosition(startIndex: Int, endIndex: Int)
 
-sealed trait Element
+sealed trait AudioPayload
 
-enum Sound extends Element:
+enum Sound extends AudioPayload:
   case NoteInText(note: Note, position: TextPosition)
   case SampleInText(sample: Sample, position: TextPosition)
   case Rest(position: TextPosition)
 
-enum RecursivePattern extends Element:
-  case SubPattern(pattern: Pattern)
-  case AlternationPattern(pattern: Pattern)
-  case Transform(modifier: PatternModifier, pattern: Pattern)
-
-enum AudioEffect extends Element:
+enum AudioEffect extends AudioPayload:
   case Gain(value: Double)
   case Pan(value: Double)
   case Room(value: Double)
@@ -81,33 +69,32 @@ enum AudioEffect extends Element:
   case HighPass(value: Double)
 
 
-enum PatternModifier:
-  case Delay(value: Double)
+enum PatternModifier[+T]:
   case Reverse
-  case Repetition(value: Double)
-  case FastForward(value: Double)
-  case SlowMotion(value: Double)
-  case Early(value: Double)
-  case Late(value: Double)
-  //case Juxtaposition(transformations: List[AudioEffect])
-  //case Offset(offset: Double, transformations: List[AudioEffect])
+  case FastForward(factor: Pattern[Double])
+  case SlowMotion(factor: Pattern[Double])
+  case Late(offset: Pattern[Double])
+  case Delay(offset: Pattern[Double])
+  case Early(offset: Pattern[Double])
+  case Repetition(times: Pattern[Double])
+  case Juxtaposition(modifiers: List[PatternModifier[T]])
+  case Offset(offset: Double, modifiers: List[PatternModifier[T]])
 
 
-// ==========================================
-// 3. COMPOSIZIONE MUSICALE
-// ==========================================
-
-// Un Pattern è una lista di sequenze suonate in parallelo.
-type Pattern = List[Seq[Element]]
-
-case class Track(base: Pattern, extensions: List[Pattern])
-
+sealed trait Pattern[+T]
+object Pattern:
+  case class Atom[T](value: T) extends Pattern[T]
+  case class Sequence[T](elements: List[Pattern[T]]) extends Pattern[T]
+  case class Parallel[T](layers: List[Pattern[T]]) extends Pattern[T]
+  case class Alternation[T](elements: List[Pattern[T]]) extends Pattern[T]
+  case class TimeWarp[T](modifier: PatternModifier[T], pattern: Pattern[T]) extends Pattern[T]
+  case class WithExtensions(base: Pattern[AudioPayload], extensions: List[Pattern[AudioPayload]]) extends Pattern[AudioPayload]
 
 // ==========================================
 // 4. ESECUZIONE E SCHEDULING
 // ==========================================
 
-case class ScheduledEvent(startTime: Fraction, endTime: Fraction, element: Element, appliedExtensions: List[Element] = Nil)
+case class ScheduledEvent[+T](whole: Interval, part: Interval, value: T, appliedExtensions: List[AudioPayload] = Nil)
 
 case class Tempo(cps: Double) {
   val cycleDurationMs: Double = 1000.0 / cps
@@ -118,3 +105,14 @@ case class Tempo(cps: Double) {
   def offsetMs(phase: Fraction): Long =
     (phase.toDouble * cycleDurationMs).toLong
 }
+
+
+opaque type AbsoluteTime = Long
+object AbsoluteTime:
+  def apply(value: Long): AbsoluteTime = value
+  extension (t: AbsoluteTime)
+    def toLong: Long = t
+    def +(other: Long): AbsoluteTime = AbsoluteTime(t + other)
+    def -(other: Long): AbsoluteTime = AbsoluteTime(t - other)
+    def <(other: AbsoluteTime): Boolean = t < other
+    def <=(other: AbsoluteTime): Boolean = t <= other

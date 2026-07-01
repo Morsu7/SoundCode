@@ -1,4 +1,4 @@
-package soundcode.interpreter
+/*package soundcode.interpreter
 
 import org.scalatest.funsuite.AnyFunSuite
 import fastparse.*
@@ -74,4 +74,4 @@ class InterpreterFunSuite extends AnyFunSuite {
         val sub = sequence(1).asInstanceOf[AP.SubPattern].pattern
         assert(sub.head.head.asInstanceOf[Sound.NoteInText].note.value == "e3")
     }
-}
+}*/

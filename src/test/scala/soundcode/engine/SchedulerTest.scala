@@ -3,32 +3,55 @@ package soundcode.engine
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
 import soundcode.domain.*
-import soundcode.interpreter.interpret
-import soundcode.engine.Resolvable.given
 
-// --- SYNTAX SUGAR PER LE FRAZIONI ---
 extension (n: Int)
   def \(d: Int): Fraction = Fraction(n.toLong, d.toLong)
 
 extension (n: Long)
   def \(d: Long): Fraction = Fraction(n, d)
-// ------------------------------------
+// ---------------------------------------------
 
 class SchedulerTest extends AnyFunSuite with Matchers {
 
-  // Limiti calcolati dinamicamente usando la nuova sintassi
-  def resolve(tracks: List[Track], cycle: Int): List[ExpEvent] =
+  val dummyPos = TextPosition(0, 0)
+
+  // Suoni Base
+  def bd = Pattern.Atom(Sound.SampleInText(Sample("bd"), dummyPos))
+  def hh = Pattern.Atom(Sound.SampleInText(Sample("hh"), dummyPos))
+  def sn = Pattern.Atom(Sound.SampleInText(Sample("sn"), dummyPos))
+  def cp = Pattern.Atom(Sound.SampleInText(Sample("cp"), dummyPos))
+  def rim = Pattern.Atom(Sound.SampleInText(Sample("rim"), dummyPos))
+  def clap = Pattern.Atom(Sound.SampleInText(Sample("clap"), dummyPos))
+
+  // Note
+  def c4 = Pattern.Atom(Sound.NoteInText(Note("c4"), dummyPos))
+  def f4 = Pattern.Atom(Sound.NoteInText(Note("f4"), dummyPos))
+  def g4 = Pattern.Atom(Sound.NoteInText(Note("g4"), dummyPos))
+  def cSharp4 = Pattern.Atom(Sound.NoteInText(Note("c#4"), dummyPos))
+
+  // Effetti
+  def gain(v: Double) = Pattern.Atom(AudioEffect.Gain(v))
+  def room(v: Double) = Pattern.Atom(AudioEffect.Room(v))
+
+  // Combinatori
+  def seq[T](p: Pattern[T]*): Pattern[T] = Pattern.Sequence(p.toList)
+  def par[T](p: Pattern[T]*): Pattern[T] = Pattern.Parallel(p.toList)
+  def alt[T](p: Pattern[T]*): Pattern[T] = Pattern.Alternation(p.toList)
+  def ext(base: Pattern[AudioPayload], exts: Pattern[AudioPayload]*): Pattern[AudioPayload] =
+    Pattern.WithExtensions(base, exts.toList)
+
+  def resolve(patterns: List[Pattern[AudioPayload]], cycle: Int): List[ExpEvent] =
     val cycleStart = cycle \ 1
     val cycleEnd = (cycle + 1) \ 1
 
-    SchedulerImpl.generateInfiniteTimeline(tracks)
-      .dropWhile(_.startTime < cycleStart)
-      .takeWhile(_.startTime < cycleEnd)
+    SchedulerImpl.generateInfiniteTimeline(patterns)
+      .dropWhile(_.part.start < cycleStart)
+      .takeWhile(_.part.start < cycleEnd)
       .map(_.toExp)
       .toList
 
   test("bd hh sn hh") {
-    val streams = interpret("sound(\"bd hh sn hh\")")
+    val streams = List(seq(bd, hh, sn, hh))
 
     resolve(streams, 0) should contain theSameElementsInOrderAs List(
       ExpEvent("bd", 0 \ 1, 1 \ 4),
@@ -38,19 +61,25 @@ class SchedulerTest extends AnyFunSuite with Matchers {
     )
   }
 
-  test("<bd bd hh bd rim bd hh bd>") {
-    val streams = interpret("sound(\"<bd bd hh bd rim bd hh bd>\")")
-    val outcomes = List("bd", "bd", "hh", "bd", "rim", "bd", "hh", "bd")
+  test("<bd bd hh bd rim bd hh bd> risolve ogni passo correttamente") {
+    val pattern = alt(bd, bd, hh, bd, rim, bd, hh, bd)
+    val streams = List(pattern)
 
-    for (cycleIndex <- 0 until 8) {
-      resolve(streams, cycleIndex) should contain theSameElementsInOrderAs List(
-        ExpEvent(outcomes(cycleIndex), cycleIndex \ 1, (cycleIndex + 1) \ 1)
-      )
+    val samples = Vector("bd", "bd", "hh", "bd", "rim", "bd", "hh", "bd")
+
+    for (i <- 0 until 8) {
+      val result = resolve(streams, i)
+
+      result should have size 1
+      result.head shouldBe ExpEvent(samples(i), i \ 1, (i + 1) \ 1)
     }
   }
 
   test("note(c f [ g c c# ]).sound(<bd [hh sn]> cp).room(4 5 [4] , <4 5 6>)") {
-    val streams = interpret("note(\"c f [ g c c# ]\").sound(\"<bd [hh sn]> cp\").room(\"4 5 [4] , <4 5 6>\")")
+    val base = seq(c4, f4, seq(g4, c4, cSharp4))
+    val extSound = seq(alt(bd, seq(hh, sn)), cp)
+    val extRoom = par(seq(room(4), room(5), seq(room(4))), alt(room(4), room(5), room(6)))
+    val streams = List(ext(base, extSound, extRoom))
 
     resolve(streams, 0) should contain theSameElementsInOrderAs List(
       ExpEvent("c4", 0 \ 1, 1 \ 3, List("bd", "4.0", "4.0")),
@@ -70,7 +99,7 @@ class SchedulerTest extends AnyFunSuite with Matchers {
   }
 
   test("bd hh sn hh [hh , sn < bd hh > ]") {
-    val streams = interpret("sound(\"bd hh sn hh [hh , sn < bd hh > ]\")")
+    val streams = List(seq(bd, hh, sn, hh, par(hh, seq(sn, alt(bd, hh)))))
 
     resolve(streams, 0) should contain allOf(
       ExpEvent("bd", 0 \ 1, 1 \ 5),
@@ -94,7 +123,7 @@ class SchedulerTest extends AnyFunSuite with Matchers {
   }
 
   test("<bd [hh sn]> cp") {
-    val streams = interpret("sound(\"<bd [hh sn]> cp\")")
+    val streams = List(seq(alt(bd, seq(hh, sn)), cp))
 
     resolve(streams, 0) should contain theSameElementsInOrderAs List(
       ExpEvent("bd", 0 \ 1, 1 \ 2),
@@ -109,12 +138,17 @@ class SchedulerTest extends AnyFunSuite with Matchers {
   }
 
   test("generateBoundedTimelines rispetta le lunghezze dei pattern") {
-    val streams = interpret("sound(\"bd hh sn hh\")\nsound(\"<cp rim bd>\")")
+    // Prima era: interpret("sound(\"bd hh sn hh\")\nsound(\"<cp rim bd>\")")
+    // Ora passiamo due pattern separati nella lista
+    val p1 = seq(bd, hh, sn, hh)
+    val p2 = alt(cp, rim, bd)
+    val streams = List(p1, p2)
+
     val viewData = SchedulerImpl.generateBoundedTimelines(streams)
 
     viewData should have size 2
 
-    viewData(1).last.endTime shouldBe (3 \ 1)
+    viewData(1).last.part.end shouldBe (3 \ 1)
 
     viewData(1).map(_.toExp) should contain theSameElementsInOrderAs List(
       ExpEvent("cp", 0 \ 1, 1 \ 1),
@@ -124,13 +158,13 @@ class SchedulerTest extends AnyFunSuite with Matchers {
   }
 
   test("generateBoundedTimelines: Poliritmia tra Base (2) ed Estensione (3) -> MCM = 6 cicli") {
-    val streams = interpret("sound(\"<bd cp>\").note(\"<c f g>\")")
+    val streams = List(ext(alt(bd, cp), alt(c4, f4, g4)))
     val viewData = SchedulerImpl.generateBoundedTimelines(streams)
 
     viewData should have size 1
     val trackTimeline = viewData.head
 
-    trackTimeline.last.endTime shouldBe (6 \ 1)
+    trackTimeline.last.part.end shouldBe (6 \ 1)
 
     trackTimeline.map(_.toExp) should contain theSameElementsInOrderAs List(
       ExpEvent("bd", 0 \ 1, 1 \ 1, List("c4")),
@@ -143,13 +177,13 @@ class SchedulerTest extends AnyFunSuite with Matchers {
   }
 
   test("generateBoundedTimelines: Alternanze annidate <bd <hh sn>> durano 4 cicli") {
-    val streams = interpret("sound(\"<bd <hh sn>>\")")
+    val streams = List(alt(bd, alt(hh, sn)))
     val viewData = SchedulerImpl.generateBoundedTimelines(streams)
 
     viewData should have size 1
     val trackTimeline = viewData.head
 
-    trackTimeline.last.endTime shouldBe (4 \ 1)
+    trackTimeline.last.part.end shouldBe (4 \ 1)
 
     trackTimeline.map(_.toExp) should contain theSameElementsInOrderAs List(
       ExpEvent("bd", 0 \ 1, 1 \ 1),
@@ -160,13 +194,13 @@ class SchedulerTest extends AnyFunSuite with Matchers {
   }
 
   test("generateBoundedTimelines: Multi-estensioni con lunghezze 1, 2 e 3 -> MCM = 6 cicli") {
-    val streams = interpret("sound(\"bd\").note(\"<c f>\").gain(\"<3 4 5>\")")
+    val streams = List(ext(bd, alt(c4, f4), alt(gain(3), gain(4), gain(5))))
     val viewData = SchedulerImpl.generateBoundedTimelines(streams)
 
     viewData should have size 1
     val trackTimeline = viewData.head
 
-    trackTimeline.last.endTime shouldBe (6 \ 1)
+    trackTimeline.last.part.end shouldBe (6 \ 1)
 
     trackTimeline.map(_.toExp) should contain theSameElementsInOrderAs List(
       ExpEvent("bd", 0 \ 1, 1 \ 1, List("c4", "3.0")),
@@ -179,13 +213,13 @@ class SchedulerTest extends AnyFunSuite with Matchers {
   }
 
   test("generateBoundedTimelines: Le estensioni sub-ciclo non alterano il loop totale") {
-    val streams = interpret("sound(\"<bd cp>\").note(\"c f g\")")
+    val streams = List(ext(alt(bd, cp), seq(c4, f4, g4)))
     val viewData = SchedulerImpl.generateBoundedTimelines(streams)
 
     viewData should have size 1
     val trackTimeline = viewData.head
 
-    trackTimeline.last.endTime shouldBe (2 \ 1)
+    trackTimeline.last.part.end shouldBe (2 \ 1)
 
     trackTimeline.map(_.toExp) should contain theSameElementsInOrderAs List(
       ExpEvent("bd", 0 \ 1, 1 \ 1, List("c4")),
@@ -194,13 +228,13 @@ class SchedulerTest extends AnyFunSuite with Matchers {
   }
 
   test("Stress Test 1: Tre livelli di annidamento <bd <hh <sn cp>>> (MCM = 8)") {
-    val streams = interpret("sound(\"<bd <hh <sn cp>>>\")")
+    val streams = List(alt(bd, alt(hh, alt(sn, cp))))
     val viewData = SchedulerImpl.generateBoundedTimelines(streams)
 
     viewData should have size 1
     val trackTimeline = viewData.head
 
-    trackTimeline.last.endTime shouldBe (8 \ 1)
+    trackTimeline.last.part.end shouldBe (8 \ 1)
 
     trackTimeline.map(_.toExp) should contain theSameElementsInOrderAs List(
       ExpEvent("bd", 0 \ 1, 1 \ 1),
@@ -215,13 +249,13 @@ class SchedulerTest extends AnyFunSuite with Matchers {
   }
 
   test("Stress Test 2: Annidamento asimmetrico estremo <bd cp <hh <sn rim clap>>> (MCM = 18)") {
-    val streams = interpret("sound(\"<bd cp <hh <sn rim clap>>>\")")
+    val streams = List(alt(bd, cp, alt(hh, alt(sn, rim, clap))))
     val viewData = SchedulerImpl.generateBoundedTimelines(streams)
 
     viewData should have size 1
     val trackTimeline = viewData.head
 
-    trackTimeline.last.endTime shouldBe (18 \ 1)
+    trackTimeline.last.part.end shouldBe (18 \ 1)
 
     val events = trackTimeline.map(_.toExp).toVector
 
@@ -235,13 +269,13 @@ class SchedulerTest extends AnyFunSuite with Matchers {
   }
 
   test("Stress Test 3: Scontro di numeri primi tra base ed estensioni (2, 3, 5 -> MCM = 30)") {
-    val streams = interpret("sound(\"<bd cp>\").note(\"<c f g>\").gain(\"<1 2 3 4 5>\")")
+    val streams = List(ext(alt(bd, cp), alt(c4, f4, g4), alt(gain(1), gain(2), gain(3), gain(4), gain(5))))
     val viewData = SchedulerImpl.generateBoundedTimelines(streams)
 
     viewData should have size 1
     val trackTimeline = viewData.head
 
-    trackTimeline.last.endTime shouldBe (30 \ 1)
+    trackTimeline.last.part.end shouldBe (30 \ 1)
     trackTimeline should have size 30
 
     val events = trackTimeline.map(_.toExp).toVector
@@ -255,18 +289,17 @@ class SchedulerTest extends AnyFunSuite with Matchers {
 // Classe ExpEvent invariata, accetta Fraction
 case class ExpEvent(element: String, start: Fraction, end: Fraction, extensions: List[String] = Nil)
 
-extension (e: ScheduledEvent)
+extension (e: ScheduledEvent[AudioPayload])
   def toExp: ExpEvent =
-    val exts = e.appliedExtensions.map {
-      case Sound.NoteInText(n, _) => n.value
+    def extractName(payload: AudioPayload): String = payload match
       case Sound.SampleInText(s, _) => s.value
+      case Sound.NoteInText(n, _) => n.value
       case AudioEffect.Gain(v) => v.toString
       case AudioEffect.Room(v) => v.toString
+      case AudioEffect.Pan(v) => v.toString
       case _ => "unknown"
-    }
-    val name = e.element match {
-      case Sound.SampleInText(s, _) => s.value
-      case Sound.NoteInText(n, _) => n.value
-      case _ => "unknown"
-    }
-    ExpEvent(name, e.startTime, e.endTime, exts)
+
+    val name = extractName(e.value)
+    val exts = e.appliedExtensions.map(extractName)
+
+    ExpEvent(name, e.part.start, e.part.end, exts)
