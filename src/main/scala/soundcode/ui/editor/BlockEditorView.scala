@@ -1,7 +1,8 @@
 package soundcode.ui.editor
 
 import javafx.scene.Node
-import javafx.scene.text.{Text, TextFlow}
+import javafx.scene.text.TextFlow
+import org.fxmisc.richtext.TextExt
 import org.fxmisc.flowless.VirtualizedScrollPane
 import org.fxmisc.richtext.GenericStyledArea
 import org.fxmisc.richtext.model.{SegmentOps, StyledSegment, TextOps}
@@ -18,7 +19,11 @@ import java.util.Optional
 import soundcode.mvu.AppModel
 import soundcode.ui.UITheme
 
-final class BlockEditorView:
+final class BlockEditorView(
+    initialCode: String = """|note("c4 a4").sound("piano")
+           |sound("hb hd hh")
+           |""".stripMargin.trim
+):
   private type Segment = RichEither[String, EmbeddedVisualizerSegment]
 
   private val textOps = SegmentOps.styledTextOps[String]()
@@ -68,7 +73,7 @@ final class BlockEditorView:
           val segment = styled.getSegment
 
           if segment.isLeft then
-            val text = new Text(segment.getLeft)
+            val text = new TextExt(segment.getLeft)
             text.setFontSmoothingType(FontSmoothingType.GRAY)
             text.setStyle(styled.getStyle)
             text
@@ -145,7 +150,10 @@ final class BlockEditorView:
   val root: StackPane = new StackPane:
     children = Seq(jfxNode2sfx(new VirtualizedScrollPane(area)))
 
-  def render(state: AppModel): Unit = ()
+  def render(state: AppModel): Unit =
+    // setCodeWithVisualizers(state.code)
+
+    SyntaxHighlighter.applyTo(area, state.positions)
 
   def currentCode: String =
     area.getParagraphs.asScala
@@ -185,6 +193,8 @@ final class BlockEditorView:
           )
       }
     finally replacingCode = false
+
+  setCodeWithVisualizers(initialCode)
 
   private def visualizerInsertions(code: String): Vector[(Int, AnimatedView)] =
     val lines = code.split("\n", -1).toVector
