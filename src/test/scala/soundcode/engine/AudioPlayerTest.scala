@@ -5,27 +5,6 @@ import org.scalatest.matchers.should.Matchers
 import soundcode.domain.*
 
 class AudioPlayerTest extends AnyFunSuite with Matchers {
-  
-  val dummyPos = TextPosition(0, 0)
-
-  def bd = Pattern.Atom(Sound.SampleInText(Sample("bd"), dummyPos))
-  def hh = Pattern.Atom(Sound.SampleInText(Sample("hh"), dummyPos))
-  def sn = Pattern.Atom(Sound.SampleInText(Sample("sn"), dummyPos))
-  def cp = Pattern.Atom(Sound.SampleInText(Sample("cp"), dummyPos))
-
-  def c4 = Pattern.Atom(Sound.NoteInText(Note("c4"), dummyPos))
-  def f4 = Pattern.Atom(Sound.NoteInText(Note("f4"), dummyPos))
-  def g4 = Pattern.Atom(Sound.NoteInText(Note("g4"), dummyPos))
-
-  def gain(v: Double) = Pattern.Atom(AudioEffect.Gain(v))
-  def room(v: Double) = Pattern.Atom(AudioEffect.Room(v))
-
-  def seq[T](p: Pattern[T]*): Pattern[T] = Pattern.Sequence(p.toList)
-  def par[T](p: Pattern[T]*): Pattern[T] = Pattern.Parallel(p.toList)
-  def alt[T](p: Pattern[T]*): Pattern[T] = Pattern.Alternation(p.toList)
-  def ext(base: Pattern[AudioPayload], exts: Pattern[AudioPayload]*): Pattern[AudioPayload] =
-    Pattern.WithExtensions(base, exts.toList)
-  
 
   test("bd hh sn hh") {
     val pattern = seq(bd, hh, sn, hh)

@@ -12,6 +12,7 @@ case class Fraction(n: Long, d: Long) extends Ordered[Fraction]:
   val num: Long = if (d < 0) -n / g else n / g
   val den: Long = d.abs / g
 
+  override def toString: String = s"$num/$den"
   override def equals(obj: Any): Boolean = obj match
     case that: Fraction => this.num == that.num && this.den == that.den
     case _ => false
@@ -36,6 +37,7 @@ case class Interval(start: Fraction, end: Fraction):
     val newStart = if (start > other.start) start else other.start
     val newEnd = if (end < other.end) end else other.end
     if (newStart < newEnd) Some(Interval(newStart, newEnd)) else None
+  def map(f: Fraction => Fraction): Interval = Interval(f(start), f(end))
 
 opaque type Note = String
 object Note:
@@ -94,7 +96,11 @@ object Pattern:
 // 4. ESECUZIONE E SCHEDULING
 // ==========================================
 
-case class ScheduledEvent[+T](whole: Interval, part: Interval, value: T, appliedExtensions: List[AudioPayload] = Nil)
+case class ScheduledEvent[+T](whole: Interval, part: Interval, value: T, appliedExtensions: List[AudioPayload] = Nil):
+  def mapTime(f: Fraction => Fraction): ScheduledEvent[T] =
+    this.copy(whole = whole.map(f), part = part.map(f))
+  def clipTo(window: Interval): Option[ScheduledEvent[T]] =
+    this.part.intersect(window).map(validPart => this.copy(part = validPart))
 
 case class Tempo(cps: Double) {
   val cycleDurationMs: Double = 1000.0 / cps

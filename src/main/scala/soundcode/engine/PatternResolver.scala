@@ -4,54 +4,95 @@ import soundcode.domain.*
 
 object PatternResolver:
 
-  def query(pattern: Pattern[AudioPayload], timeWindow: Interval): List[ScheduledEvent[AudioPayload]] =
+  def query[T](pattern: Pattern[T], timeWindow: Interval): List[ScheduledEvent[T]] =
     if timeWindow.start >= timeWindow.end then return Nil
+
     pattern match
       case Pattern.Atom(value) => List(ScheduledEvent(whole = timeWindow, part = timeWindow, value))
       case Pattern.Parallel(layers) => layers.flatMap(layer => query(layer, timeWindow))
       case Pattern.Alternation(elements) => resolveAlternation(elements, timeWindow)
       case Pattern.Sequence(elements) => resolveSequence(elements, timeWindow)
-      case Pattern.WithExtensions(base, extensions) => resolveExtensions(base, extensions, timeWindow)
-      case Pattern.TimeWarp(modifier, innerPattern) =>
-        // Per ora disattivato
+      case Pattern.TimeWarp(modifier, inner) => resolveTimeWarp(modifier, inner, timeWindow)
+      case we: Pattern.WithExtensions => resolveExtensions(we.base, we.extensions, timeWindow)
+
+
+  private def resolveTimeWarp[T](modifier: PatternModifier[T], innerPattern: Pattern[T], timeWindow: Interval): List[ScheduledEvent[T]] =
+    modifier match
+      case PatternModifier.FastForward(factor) =>
+        applyDynamicModifier(factor, innerPattern, timeWindow,
+          zoomIn  = (w, f) => w.map(t => t * f),
+          zoomOut = (e, f) => e.mapTime(t => t / f)
+        )
+
+      case PatternModifier.SlowMotion(factor) =>
+        applyDynamicModifier(factor, innerPattern, timeWindow,
+          zoomIn  = (w, f) => w.map(t => t / f),
+          zoomOut = (e, f) => e.mapTime(t => t * f)
+        )
+
+      case PatternModifier.Late(offset) =>
+        applyDynamicModifier(offset, innerPattern, timeWindow,
+          zoomIn  = (w, o) => w.map(t => t - o),
+          zoomOut = (e, o) => e.mapTime(t => t + o)
+        )
+
+      case PatternModifier.Early(offset) =>
+        applyDynamicModifier(offset, innerPattern, timeWindow,
+          zoomIn  = (w, o) => w.map(t => t + o),
+          zoomOut = (e, o) => e.mapTime(t => t - o)
+        )
+
+      case _ =>
         query(innerPattern, timeWindow)
 
-  private def resolveAlternation(elements: List[Pattern[AudioPayload]], timeWindow: Interval): List[ScheduledEvent[AudioPayload]] =
+
+  private def resolveAlternation[T](elements: List[Pattern[T]], timeWindow: Interval): List[ScheduledEvent[T]] =
     if elements.isEmpty then return Nil
 
-    val cycle = timeWindow.start.toDouble.floor.toLong
-    val activeIndex = (cycle.abs % elements.size).toInt
-  
-    // Calcoliamo lo shift temporale in un'unica riga
-    val timeOffset = Fraction(cycle - (cycle / elements.size), 1L)
-  
-    // Pipeline funzionale: Sposta indietro -> Interroga -> Sposta avanti
-    query(elements(activeIndex), shiftInterval(timeWindow, backwardsBy = timeOffset))
-      .map(event => shiftEvent(event, forwardsBy = timeOffset))
-
-
-  private def resolveSequence(elements: List[Pattern[AudioPayload]], timeWindow: Interval): List[ScheduledEvent[AudioPayload]] =
-    if elements.isEmpty then return Nil
-    val n = elements.size
-    val step = Fraction(1, n)
     val startCycle = timeWindow.start.toDouble.floor.toLong
     val endCycle = timeWindow.end.toDouble.ceil.toLong
 
-    val events = for cycle <- startCycle until endCycle
-      cycleStart = Fraction(cycle, 1L)
+    val events = for cycle <- startCycle until endCycle yield
+      val cycleStart = Fraction(cycle, 1L)
+      val cycleEnd = cycleStart + Fraction(1L, 1L)
 
+      Interval(cycleStart, cycleEnd).intersect(timeWindow).toList.flatMap { activeWindow =>
+        val activeIndex = (cycle.abs % elements.size).toInt
+        val timeOffset = Fraction(cycle - (cycle / elements.size), 1L)
+
+        query(elements(activeIndex), activeWindow.map(t => t - timeOffset))
+          .map(event => event.mapTime(t => t + timeOffset))
+      }
+
+    events.toList.flatten
+
+
+  private def resolveSequence[T](elements: List[Pattern[T]], timeWindow: Interval): List[ScheduledEvent[T]] =
+    if elements.isEmpty then return Nil
+    val n = elements.size
+    val zoomF = Fraction(n.toLong, 1L)
+    val step = Fraction(1, n)
+
+    val startCycle = timeWindow.start.toDouble.floor.toLong
+    val endCycle = timeWindow.end.toDouble.ceil.toLong
+
+    val events = for
+      cycle <- startCycle until endCycle
+      cycleStart = Fraction(cycle, 1L)
       (element, index) <- elements.zipWithIndex
       slotStart = cycleStart + (step * Fraction(index.toLong, 1L))
       slot = Interval(slotStart, slotStart + step)
 
       overlap <- slot.intersect(timeWindow).toList
 
-      // Zoom In -> Query -> Zoom Out -> Clip
-      zoomedInWindow = zoomInTime(overlap, slotStart, n, cycleStart)
+      zoomedInWindow = overlap.map(t => (t - slotStart) * zoomF + cycleStart)
+
       childEvent <- query(element, zoomedInWindow)
 
-      zoomedOutEvent = zoomOutEvent(childEvent, slotStart, n, cycleStart)
-      finalEvent <- clipEventToWindow(zoomedOutEvent, overlap).toList
+      finalEvent <- childEvent
+        .mapTime(t => ((t - cycleStart) / zoomF) + slotStart)
+        .clipTo(overlap)
+        .toList
     yield finalEvent
 
     events.toList
@@ -66,32 +107,24 @@ object PatternResolver:
       baseEvent.copy(appliedExtensions = baseEvent.appliedExtensions ++ activeExts)
     }
 
-  // HELPER MATEMATICI PER LA MANIPOLAZIONE DEL TEMPO (GEOMETRIA)
 
-  private def shiftInterval(interval: Interval, backwardsBy: Fraction): Interval =
-    Interval(interval.start - backwardsBy, interval.end - backwardsBy)
+  private def applyDynamicModifier[T](parameter: Pattern[Double], innerPattern: Pattern[T], timeWindow: Interval, zoomIn: (Interval, Fraction) => Interval, zoomOut: (ScheduledEvent[T], Fraction) => ScheduledEvent[T]): List[ScheduledEvent[T]] =
+    for
+      paramEvent <- query(parameter, timeWindow)
+      paramValue = Fraction((paramEvent.value * 100).toLong, 100L)
 
-  private def shiftEvent(event: ScheduledEvent[AudioPayload], forwardsBy: Fraction): ScheduledEvent[AudioPayload] =
-    event.copy(
-      whole = Interval(event.whole.start + forwardsBy, event.whole.end + forwardsBy),
-      part = Interval(event.part.start + forwardsBy, event.part.end + forwardsBy)
-    )
+      activeWindow <- paramEvent.part.intersect(timeWindow).toList
+      warpedWindow = zoomIn(activeWindow, paramValue)
 
-  // Trasforma il tempo globale nello spazio di tempo "ingrandito" del figlio
-  private def zoomInTime(globalWindow: Interval, slotStart: Fraction, zoomFactor: Int, cycleStart: Fraction): Interval =
-    def applyZoom(time: Fraction): Fraction = (time - slotStart) * Fraction(zoomFactor.toLong, 1L) + cycleStart
-    Interval(applyZoom(globalWindow.start), applyZoom(globalWindow.end))
+      startCycle = warpedWindow.start.toDouble.floor.toLong
+      endCycle = warpedWindow.end.toDouble.ceil.toLong
+      cycle <- startCycle until endCycle
 
-  // Trasforma il tempo locale del figlio riportandolo alla dimensione originale
-  private def zoomOutEvent(event: ScheduledEvent[AudioPayload], slotStart: Fraction, zoomFactor: Int, cycleStart: Fraction): ScheduledEvent[AudioPayload] =
-    def applyUnzoom(time: Fraction): Fraction = ((time - cycleStart) / Fraction(zoomFactor.toLong, 1L)) + slotStart
+      cycleStart = Fraction(cycle, 1L)
+      cycleEnd = cycleStart + Fraction(1L, 1L)
 
-    event.copy(
-      whole = Interval(applyUnzoom(event.whole.start), applyUnzoom(event.whole.end)),
-      part = Interval(applyUnzoom(event.part.start), applyUnzoom(event.part.end))
-    )
+      cycleWindow <- Interval(cycleStart, cycleEnd).intersect(warpedWindow).toList
 
-  private def clipEventToWindow(event: ScheduledEvent[AudioPayload], window: Interval): Option[ScheduledEvent[AudioPayload]] =
-    event.part.intersect(window).map { validPart =>
-      event.copy(part = validPart)
-    }
+      innerEvent <- query(innerPattern, cycleWindow)
+
+    yield zoomOut(innerEvent, paramValue)
