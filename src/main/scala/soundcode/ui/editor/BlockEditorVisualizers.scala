@@ -5,7 +5,7 @@ import soundcode.ui.visualizer.PianoRollView
 import soundcode.ui.visualizer.OscilloscopeView
 
 private object BlockEditorVisualizers:
-  def forLine(line: String): Option[AnimatedView] =
-    if line.contains("._pianoroll()") then Some(new PianoRollView())
-    else if line.contains("._scope()") then Some(new OscilloscopeView())
+  def forLine(lineIndex: Int): Option[AnimatedView] =
+    if lineIndex == 0 then Some(new PianoRollView)
+    // else if offset == 1 then Some(new OscilloscopeView)
     else None

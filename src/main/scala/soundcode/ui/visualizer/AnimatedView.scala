@@ -11,22 +11,12 @@ import scalafx.application.Platform
 import scalafx.scene.layout.Pane
 import soundcode.ui.UITheme
 
-private case class FakeNote(
-    pitch: Int,
+private case class VisualEvent(
+    label: String,
     start: Double,
-    duration: Double
-)
-
-private val notes: Seq[FakeNote] = Seq(
-  FakeNote(60, 0.0, 0.75),
-  FakeNote(64, 0.5, 0.5),
-  FakeNote(67, 1.0, 1.0),
-  FakeNote(72, 2.0, 0.5),
-  FakeNote(69, 2.5, 0.75),
-  FakeNote(65, 3.25, 0.5),
-  FakeNote(60, 4.0, 1.0),
-  FakeNote(67, 5.0, 0.75),
-  FakeNote(72, 6.0, 1.0)
+    duration: Double,
+    lane: Int,
+    color: Color
 )
 
 trait AnimatedView:
@@ -43,6 +33,12 @@ abstract class CanvasAnimatedView extends AnimatedView:
 
   protected val canvasHeight = 120.0
   protected val canvas = new Canvas(0, canvasHeight)
+
+  protected val visualEvents: Seq[VisualEvent] = Seq(
+    VisualEvent("C4", 0.0, 1.0 / 3.0, 0, Color.web(UITheme.Foreground)),
+    VisualEvent("E4", 1.0 / 3.0, 1.0 / 3.0, 1, Color.web(UITheme.Foreground)),
+    VisualEvent("G4", 2.0 / 3.0, 1.0 / 3.0, 2, Color.web(UITheme.Foreground))
+  )
 
   private val canvasPane = new Pane:
     minWidth = 0
@@ -77,9 +73,10 @@ abstract class CanvasAnimatedView extends AnimatedView:
   private var startNano: Long = 0L
   private var lastBeat = 0.0
 
+  // TODO: toVisualEvents and modify loopLength
   protected def loopLength: Double =
-    if notes.isEmpty then 1.0
-    else notes.map(note => note.start + note.duration).max
+    if visualEvents.isEmpty then 1.0
+    else visualEvents.map(event => event.start + event.duration).max
 
   protected def clear(gc: GraphicsContext, w: Double, h: Double): Unit =
     gc.fill = Color.web(UITheme.Background)

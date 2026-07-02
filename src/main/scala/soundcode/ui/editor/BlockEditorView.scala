@@ -204,9 +204,9 @@ final class BlockEditorView(
         .scanLeft(0)((offset, line) => offset + line.length + 1)
         .init
 
-    lines.zip(offsets).flatMap { case (line, offset) =>
+    lines.zip(offsets).zipWithIndex.flatMap { case ((line, offset), index) =>
       val lineEnd = offset + line.length
-      BlockEditorVisualizers.forLine(line).map(view => lineEnd -> view)
+      BlockEditorVisualizers.forLine(index).map(view => lineEnd -> view)
     }
 
   private def scheduleHighlight(): Unit =

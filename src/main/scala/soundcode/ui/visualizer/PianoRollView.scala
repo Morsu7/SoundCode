@@ -4,11 +4,8 @@ import scalafx.scene.paint.Color
 import scalafx.scene.canvas.GraphicsContext
 import soundcode.ui.UITheme
 final class PianoRollView extends CanvasAnimatedView:
-  private val minPitch = notes.map(_.pitch).min
-  private val maxPitch = notes.map(_.pitch).max
-
-  private val pitchHeight =
-    (canvasHeight - (config.verticalPadding * 2)) / (maxPitch - minPitch + 1)
+  val laneCount = visualEvents.map(_.lane).maxOption.getOrElse(0) + 1
+  val laneHeight = (canvasHeight - config.verticalPadding * 2) / laneCount
 
   override protected def draw(
       gc: GraphicsContext,
@@ -31,23 +28,36 @@ final class PianoRollView extends CanvasAnimatedView:
       currentBeat: Double,
       playheadX: Double
   ): Unit =
-    val lenght = loopLength
-    val currentLoop = Math.floor(currentBeat / lenght).toInt
+    val length = loopLength
+    val canvasWidth = gc.canvas.width.value
+    val maxDuration = visualEvents.map(_.duration).maxOption.getOrElse(0.0)
 
-    val repeatedNotes =
+    val firstVisibleBeat =
+      currentBeat - playheadX / pixelsPerBeat - maxDuration
+
+    val lastVisibleBeat =
+      currentBeat + (canvasWidth - playheadX) / pixelsPerBeat
+
+    val firstLoop =
+      Math.floor(firstVisibleBeat / length).toInt.max(0)
+
+    val lastLoop =
+      Math.ceil(lastVisibleBeat / length).toInt
+
+    val repeatedEvents =
       for
-        loop <- (currentLoop - 1).max(0) to currentLoop + 2
-        note <- notes
-      yield note.copy(start = note.start + loop * lenght)
+        loop <- firstLoop to lastLoop
+        event <- visualEvents
+      yield event.copy(start = event.start + loop * length)
 
-    repeatedNotes.foreach { note =>
-      val x = playheadX + (note.start - currentBeat) * pixelsPerBeat
-      val y = (maxPitch - note.pitch) * pitchHeight + config.verticalPadding
-      val width = note.duration * pixelsPerBeat
-      val height = pitchHeight
+    repeatedEvents.foreach { event =>
+      val x = playheadX + (event.start - currentBeat) * pixelsPerBeat
+      val y = event.lane * laneHeight + config.verticalPadding
+      val width = event.duration * pixelsPerBeat
+      val height = laneHeight
 
       val isActive =
-        currentBeat >= note.start && currentBeat < note.start + note.duration
+        currentBeat >= event.start && currentBeat < event.start + event.duration
 
       if isActive then
         gc.stroke = Color.web(UITheme.Foreground)
